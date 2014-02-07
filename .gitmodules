@@ -1,9 +1,6 @@
 [submodule "arduino_libraries"]
 	path = arduino_libraries
 	url = https://github.com/jaketesler/arduino_libraries.git
-[submodule "MAX1704"]
-	path = MAX1704
-	url = https://github.com/MattNewberry/MAX1704.git
 [submodule "lsm303-arduino"]
 	path = lsm303-arduino
 	url = https://github.com/pololu/lsm303-arduino.git
@@ -19,3 +16,6 @@
 [submodule "tweetpot"]
 	path = tweetpot
 	url = https://github.com/angryelectron/tweetpot.git
+[submodule "libraries/MAX1704"]
+	path = libraries/MAX1704
+	url = https://github.com/MattNewberry/MAX1704.git
