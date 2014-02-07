@@ -1,5 +1,5 @@
 // Jim: The Self-Aware SenseBot//
-// Written in Wiring C //
+// Written in Wiring, C, and C++ //
 
 // ***** Coded by Jake Tesler ***** //
 
@@ -34,13 +34,42 @@
 #include <DS1307RTC.h>
 
 
+#define PCBVERION1.0
+static double pcbVersion = 1.0;
+
+//Clarify definitions for pin reference
+#ifdef PCBVERION1.0
+#define XBEELED 5
+#define PWSAVE 8
+#define BUZZER 9
+#define LASEREN 10
 #define BUTTONLED 11
 #define RELAY 12
+#define ONETHREE 13
 #define HIH4030_PIN A0
+#define XBEESLEEP A1
 #define STAT1 A2
+#define MCUONLED A3
 #define STAT2 A6
 #define ERRORLED A7
+
+#elif defined PCBVERION2.0
 #define XBEELED 5
+#define PWSAVE 8
+#define BUZZER 9
+#define LASEREN 10
+#define BUTTONLED 11
+#define RELAY 12
+#define ONETHREE 13
+#define HIH4030_PIN A0
+#define XBEESLEEP A1
+#define STAT1 A2
+#define MCUONLED A3
+#define STAT2 A6
+#define ERRORLED A7
+
+#endif
+
 
 /*
  * Set the analog reference voltage.  Unless you have set it explicity using
@@ -48,10 +77,10 @@
  */
 #define ARDUINO_VCC 5.0
 #define HIH4030_SUPPLY_VOLTAGE  5.0 //voltage supplied
-#define H_SLOPE 0.03068
-#define H_OFFSET 0.958
+#define H_SLOPE 0.03068 //from datasheet Table 2: Example Data Printout
+#define H_OFFSET 0.958  //from datasheet Table 2: Example Data Printout
 
-//I2C Definitions
+//I2C Address Definitions
 #define MPL3115A2_ADDR 0x60
 #define TSL2561_ADDR 0x39
 #define LSM303_ADDR_B 0b0011101
@@ -88,28 +117,27 @@ boolean timeOn;
 MAX1704 fuelGauge; //I2C - initialize fuel gauge
 MPL3115A2 altbar; //I2C - initialize barometer/altimeter/temperature
 LSM303 lsm; //I2C - initialize compass/accelerometer
-HIH4030 uncalHumid(HIH4030_PIN, HIH4030_SUPPLY_VOLTAGE, ARDUINO_VCC); //initialize humidity sensor
-HIH4030 calHumid(HIH4030_PIN, HIH4030_SUPPLY_VOLTAGE, ARDUINO_VCC); //initialize humidity sensor (calibrated)
-Adafruit_TSL2561_Unified tsl = Adafruit_TSL2561_Unified(TSL2561_ADDR_FLOAT, 12345);
-//RTC_DS1307 rtc;
+HIH4030 uncalHumid(HIH4030_PIN, HIH4030_SUPPLY_VOLTAGE, ARDUINO_VCC); //I2C - initialize humidity sensor
+HIH4030 calHumid(HIH4030_PIN, HIH4030_SUPPLY_VOLTAGE, ARDUINO_VCC); //I2C - initialize humidity sensor (calibrated)
+Adafruit_TSL2561_Unified tsl = Adafruit_TSL2561_Unified(TSL2561_ADDR_FLOAT, 12345); //I2C - initialize light sensor
 
-SoftwareSerial xbee(7,6); //7 iRX, 6 iTX*
+SoftwareSerial xbee(7,6); //7 iRX, 6 iTX* //initialize XBee
 //SendOnlySoftwareSerial myLCD(4); //4 TX* ##CUSTOM //redefined in lcdCommands.h
 //SoftwareSerial myLCD(5,4); //5 RX, 4 TX //redefined in lcdCommands.h ##not used
 
 void setup()
 {
   pinMode(2, INPUT_PULLUP); //for interrupt 0 (this is the mode button)
-  pinMode(3, INPUT_PULLUP); //for interrupt 1 (this is the xbee interrupt)
+  pinMode(3, INPUT_PULLUP); //for interrupt 1 (this is the xbee interrupt) #PWM
 //pinMode(4, OUTPUT);  //LCD RX/TX is on pin 4 **SendOnlySoftwareSerial
   pinMode(5, OUTPUT);  //Xbee Wireless Interupt LED #PWM
 //pinMode(6, OUTPUT);  //Xbee (MCU to) RX is on pin 6 #PWM **SoftwareSerial
 //pinMode(7, OUTPUT);  //Xbee (MCU to) TX is on pin 7 **SoftwareSerial
-  pinMode(8, OUTPUT);  //Power Cell Power-Save
+  pinMode(8, OUTPUT);  //LiPo Regulator Power-Save
   pinMode(9, OUTPUT);  //Buzzer #PWM
   pinMode(10, OUTPUT); //Laser EN #PWM
   pinMode(/*11*/BUTTONLED, OUTPUT); //LED for mode button (pin 11) #PWM
-  pinMode(/*12*/RELAY, OUTPUT);     //SDA/SCL Relay (pin 12) #PWM
+  pinMode(/*12*/RELAY, OUTPUT);     //SDA/SCL Relay (pin 12)
   pinMode(13, OUTPUT); //Builtin LED
   pinMode(A0, INPUT);  //Humidity sensor
   pinMode(A1, OUTPUT); //Xbee Sleep Pin
@@ -119,14 +147,14 @@ void setup()
 //pinMode(A5, INPUT);  //I2C SCL #PWM-S **Wire
   pinMode(A6, OUTPUT); //MCU Status 2 LED
   pinMode(A7, OUTPUT); //Error LED
-
+  
 //digitalWrite(2, HIGH); //button power (un-float)
   analogWrite(BUTTONLED, ledLuxLevel); //turn on LED initially
-  digitalWrite(8, HIGH); //power-save mode (HIGH=off, LOW=on)
-  digitalWrite(13, HIGH); digitalWrite(STAT1, HIGH); //activate builtin LED
-  digitalWrite(A3, HIGH); //activate 'MCU On' LED
+  digitalWrite(PWSAVE, HIGH); //power-save mode (HIGH=off, LOW=on)
+  digitalWrite(ONETHREE, HIGH); digitalWrite(STAT1, HIGH); //activate builtin LED
+  digitalWrite(MCUONLED, HIGH); //activate 'MCU On' LED
   digitalWrite(RELAY, HIGH); //start SDA/SCL batt monitor relay, leave on permanently
-  digitalWrite(10, HIGH); //disable laser
+  digitalWrite(LASEREN, HIGH); //disable laser
   digitalWrite(XBEELED, ledLuxLevel); //XBee Button LED
   
   
@@ -137,7 +165,7 @@ void setup()
   if(debug) Serial.println("hello");
   xbee.begin(115200); //start Xbee 
   if(debug) Serial.println("boot");
-  //digitalWrite(13, LOW); digitalWrite(STAT1, LOW);
+  //digitalWrite(ONETHREE, LOW); digitalWrite(STAT1, LOW);
   digitalWrite(STAT1, HIGH);
   Wire.begin();
   //LCDturnDisplayOn(); //elsewhere
@@ -174,9 +202,9 @@ void setup()
   
   
   //delay(500);
-  digitalWrite(13, LOW); digitalWrite(STAT1, LOW);
+  digitalWrite(ONETHREE, LOW); digitalWrite(STAT1, LOW);
   delay(500);
-  digitalWrite(13, HIGH); digitalWrite(STAT1, HIGH);
+  digitalWrite(ONETHREE, HIGH); digitalWrite(STAT1, HIGH);
   delay(500);
   digitalWrite(STAT1, LOW);
   /*
@@ -245,7 +273,7 @@ void setup()
   
   xbee.println(F("Xbee Sleep..."));
   if(debug) Serial.println(F("Xbee Sleep..."));
-  digitalWrite(A1, HIGH); //start xbee sleep
+  digitalWrite(XBEESLEEP, HIGH); //start xbee sleep
   xbeeSleep = 1;
   xbeeButtonLED = HIGH;
   analogWrite(XBEELED, ledLuxLevel); //turn on XBee Button LED
@@ -255,9 +283,9 @@ void setup()
   
   //warningShown = 0;  //initialize warning system
   //attachInterrupt(0, interrupt0, LOW); //digital pin 2 //should be last in setup
-  buzz(9,400,200);  //buzz on pin 9 at 400hz for 200ms
+  buzz(BUZZER,400,200);  //buzz on pin 9 at 400hz for 200ms
   delay(250);
-  buzz(9,400,200);  //buzz on pin 9 at 400hz for 200ms
+  buzz(BUZZER,400,200);  //buzz on pin 9 at 400hz for 200ms
   if(debug) Serial.println(F("AboutToSetupInterrupt"));
   attachInterrupt(0, interrupt0, FALLING); //digital pin 2 //should be last in setup
   //##########attachInterrupt(1, interrupt1, FALLING); //digital pin 3 //should be last in setup // laser
@@ -281,9 +309,9 @@ void loop() {
   
   if (mode == -1)
   {
-    buzz(9,400,200);  //buzz on pin 9 at 400hz for 200ms
+    buzz(BUZZER,400,200);  //buzz on pin 9 at 400hz for 200ms
     delay(200);
-//  buzz(9,400,200);  //buzz on pin 9 at 400hz for 200ms
+//  buzz(BUZZER,400,200);  //buzz on pin 9 at 400hz for 200ms
     mode = 0;
     if(debug) Serial.println("ModeSetTo0");
   }
@@ -291,7 +319,7 @@ void loop() {
   if (initSet == 0 && mode != 3)
   {
     laser_pwr = 0;
-    digitalWrite(10, HIGH); digitalWrite(STAT2, LOW); //disable laser
+    digitalWrite(LASEREN, HIGH); digitalWrite(STAT2, LOW); //disable laser
   }
   //set title bar...mode titles cannot be longer than 14char
   /*if (laser_pwr > 0) { LCDsetPosition(1,13); myLCD.print("L"); }
@@ -379,7 +407,7 @@ void mode0() //off-recharge
       
       if((millis()/1000) > 15) //alive for more than 10 sec
       {
-        buzz(9,400,200); //buzz on pin 9 at 400hz for 200ms
+        buzz(BUZZER,400,200); //buzz on pin 9 at 400hz for 200ms
       }
      
   }
@@ -505,7 +533,7 @@ void mode1() //Accelerometer/Compass
       delay(200);
       interrupts();
       analogWrite(BUTTONLED, ledLuxLevel);
-      buzz(9,400,200);  //buzz on pin 9 at 400hz for 200ms
+      buzz(BUZZER,400,200);  //buzz on pin 9 at 400hz for 200ms
    
       //interrupts(); //re-enable after interrupt0() interrupts shutdown
 
@@ -540,7 +568,7 @@ void mode2() //Altitude
       delay(200);
       interrupts();
       analogWrite(BUTTONLED, ledLuxLevel);
-      buzz(9,400,200);  //buzz on pin 9 at 400hz for 200ms
+      buzz(BUZZER,400,200);  //buzz on pin 9 at 400hz for 200ms
       
       
       LCDclearScreen();
@@ -644,7 +672,7 @@ void mode3() //
       delay(200);
       interrupts();
       analogWrite(BUTTONLED, ledLuxLevel);
-      buzz(9,400,200);  //buzz on pin 9 at 400hz for 200ms
+      buzz(BUZZER,400,200);  //buzz on pin 9 at 400hz for 200ms
       
       
       LCDclearScreen();
@@ -693,12 +721,12 @@ void mode3() //
      //Laser strobe
      if (laser_pwr == 4)
      {
-       digitalWrite(10, LOW); digitalWrite(STAT2, HIGH); //enable laser
+       digitalWrite(LASEREN, LOW); digitalWrite(STAT2, HIGH); //enable laser
        laser_pwr = 3;
      }
      else if (laser_pwr == 3)
      {
-       digitalWrite(10, HIGH); digitalWrite(STAT2, LOW); //disable laser
+       digitalWrite(LASEREN, HIGH); digitalWrite(STAT2, LOW); //disable laser
        laser_pwr = 4;
      }
      
@@ -780,9 +808,9 @@ void interrupt0()
   if (millis() - last_interrupt_time > 200) 
   {
     noInterrupts();
-    if(mode != -1) { buzz(9,500,200); } //buzz on pin 9 at 500hz for 200ms
+    if(mode != -1) { buzz(BUZZER,500,200); } //buzz on pin 9 at 500hz for 200ms
     Serial.println("InsideInterrupt");
-    digitalWrite(13, LOW); digitalWrite(STAT1, LOW); digitalWrite(ERRORLED, HIGH);
+    digitalWrite(ONETHREE, LOW); digitalWrite(STAT1, LOW); digitalWrite(ERRORLED, HIGH);
     //digitalWrite(BUTTONLED, LOW);
     analogWrite(BUTTONLED, ledLuxLevel);
   
@@ -831,7 +859,7 @@ void interrupt0()
   //digitalWrite(BUTTONLED, HIGH);
   //Serial.print("Interrupt Set Mode: "); //  Serial.println(mode);
   analogWrite(BUTTONLED, ledLuxLevel);
-  digitalWrite(13, HIGH); digitalWrite(STAT1, HIGH); digitalWrite(ERRORLED, LOW);
+  digitalWrite(ONETHREE, HIGH); digitalWrite(STAT1, HIGH); digitalWrite(ERRORLED, LOW);
   
   }/*
   else //THIS CANNOT EXIST UNLESS ACTUALLY PLUGGED INTO USB, CAUSES BUGS OTHERWISE
@@ -853,9 +881,9 @@ void interrupt1() {
   if (millis() - last_interrupt_time > 200) 
   {
     noInterrupts();
-    if(mode != -1) { buzz(9,500,200); } //buzz on pin 9 at 500hz for 200ms
+    if(mode != -1) { buzz(BUZZER,500,200); } //buzz on pin 9 at 500hz for 200ms
     
-    digitalWrite(13, HIGH); digitalWrite(STAT1, LOW); digitalWrite(ERRORLED, HIGH);
+    digitalWrite(ONETHREE, HIGH); digitalWrite(STAT1, LOW); digitalWrite(ERRORLED, HIGH);
     analogWrite(XBEELED, ledLuxLevel); //XBee Button LED
     //digitalWrite(BUTTONLED, LOW);
     analogWrite(BUTTONLED, ledLuxLevel);
@@ -864,38 +892,38 @@ void interrupt1() {
     if (mode == 3) {
       if (laser_pwr == 0)
       {
-        digitalWrite(10, LOW); digitalWrite(STAT2, HIGH); //enable laser
+        digitalWrite(LASEREN, LOW); digitalWrite(STAT2, HIGH); //enable laser
         laser_pwr = 255;
        
       }
       else if (laser_pwr == 255)
       {
-        analogWrite(10, 127); digitalWrite(STAT2, HIGH); 
+        analogWrite(LASEREN, 127); digitalWrite(STAT2, HIGH); 
         laser_pwr = 127;
       }
       else if (laser_pwr == 127)
       {
-        analogWrite(10, 77); digitalWrite(STAT2, HIGH); 
+        analogWrite(LASEREN, 77); digitalWrite(STAT2, HIGH); 
         laser_pwr = 77;
       }
        else if (laser_pwr == 77)
       {
-        analogWrite(10, 40); digitalWrite(STAT2, HIGH); 
+        analogWrite(LASEREN, 40); digitalWrite(STAT2, HIGH); 
         laser_pwr = 40;
       }
       else if (laser_pwr == 40)
       {
-        digitalWrite(10, LOW); digitalWrite(STAT2, HIGH); //enable laser
+        digitalWrite(LASEREN, LOW); digitalWrite(STAT2, HIGH); //enable laser
         laser_pwr = 4;
       }
       else if (laser_pwr == 4 || laser_pwr == 3) //4 means strobe on, 3 strobe off, for this
       {
-        digitalWrite(10, HIGH); digitalWrite(STAT2, LOW); //disable laser
+        digitalWrite(LASEREN, HIGH); digitalWrite(STAT2, LOW); //disable laser
         laser_pwr = 0;
       }
       else
       {
-        digitalWrite(10, HIGH); digitalWrite(STAT2, LOW); //disable laser
+        digitalWrite(LASEREN, HIGH); digitalWrite(STAT2, LOW); //disable laser
         laser_pwr = 0;
         xbee.println(F("Laser Var Error"));
       }
@@ -906,13 +934,13 @@ void interrupt1() {
     else {
      /////#####Insert XBee Sleep stuff here
     //maybe something about triggering and switching LED status
-      if (xbeeSleep == 1) { digitalWrite(A1, HIGH); }//start xbee sleep
-      else { digitalWrite(A1, LOW); } //stop xbee sleep
+      if (xbeeSleep == 1) { digitalWrite(XBEESLEEP, HIGH); }//start xbee sleep
+      else { digitalWrite(XBEESLEEP, LOW); } //stop xbee sleep
       xbeeSleep = !xbeeSleep;
     }
     
     //analogWrite(BUTTONLED, ledLuxLevel);
-    digitalWrite(13, HIGH); digitalWrite(STAT1, HIGH);
+    digitalWrite(ONETHREE, HIGH); digitalWrite(STAT1, HIGH);
   }
   last_interrupt_time = millis();
 }
