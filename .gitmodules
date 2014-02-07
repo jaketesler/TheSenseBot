@@ -10,6 +10,9 @@
 [submodule "Adafruit_TSL2561"]
 	path = Adafruit_TSL2561
 	url = https://github.com/adafruit/Adafruit_TSL2561.git
+[submodule "MAX1704"]
+	path = MAX1704
+	url = https://github.com/MattNewberry/MAX1704.git
 [submodule "MPL3115A2_Breakout"]
 	path = MPL3115A2_Breakout
 	url = https://github.com/sparkfun/MPL3115A2_Breakout.git

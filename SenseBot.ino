@@ -5,10 +5,7 @@
 
 /* *************************************************************************
  *    ********* READ THESE INSTRUCTIONS! *********
- *	
- *  TODO: Before this is uploaded to an arduino, all the EEPROM values need to be set to zero...
- *  EEPROM values are a follows: 1 indicates LOW or 1.4v; 2 indicates HIGH or 5v
- *  EEPROM(1) is the current mode.
+ *
  *
  *  SDA/SCL uses a G5V-2 Relay
  *
@@ -21,7 +18,6 @@
 
 #include "Arduino.h"
 #include "Wire.h"
-#include <EEPROM.h> //for methane bit
 #include <SoftwareSerial.h>
 #include <SendOnlySoftwareSerial.h>
 //#include <lcdCommands.h>
@@ -34,9 +30,8 @@
 #include <Adafruit_TSL2561_U.h>
 #include <MPL3115A2.h>
 #include <HIH4030.h>
-#include <Time.h>
+#include <Time.h> //custom
 #include <DS1307RTC.h>
-//#include <RTClib.h>
 
 
 #define BUTTONLED 11
@@ -372,8 +367,6 @@ void mode0() //off-recharge
       LCDsetPosition(1,1);
       myLCD.print("OFF/CHG");
       if(debug) Serial.println("OFF/CHG");
-      //Serial.println("mosfet high");
-      EEPROM.write(1,0);
       animStep = initAnimStep;
   
   
