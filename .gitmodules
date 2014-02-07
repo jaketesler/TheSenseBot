@@ -1,0 +1,3 @@
+[submodule "arduino_libraries"]
+	path = arduino_libraries
+	url = https://github.com/jaketesler/arduino_libraries.git
