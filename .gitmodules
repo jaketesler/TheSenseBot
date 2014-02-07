@@ -1,3 +1,21 @@
 [submodule "arduino_libraries"]
 	path = arduino_libraries
 	url = https://github.com/jaketesler/arduino_libraries.git
+[submodule "MAX1704"]
+	path = MAX1704
+	url = https://github.com/MattNewberry/MAX1704.git
+[submodule "lsm303-arduino"]
+	path = lsm303-arduino
+	url = https://github.com/pololu/lsm303-arduino.git
+[submodule "Adafruit_Sensor"]
+	path = Adafruit_Sensor
+	url = https://github.com/adafruit/Adafruit_Sensor.git
+[submodule "Adafruit_TSL2561"]
+	path = Adafruit_TSL2561
+	url = https://github.com/adafruit/Adafruit_TSL2561.git
+[submodule "MPL3115A2_Breakout"]
+	path = MPL3115A2_Breakout
+	url = https://github.com/sparkfun/MPL3115A2_Breakout.git
+[submodule "tweetpot"]
+	path = tweetpot
+	url = https://github.com/angryelectron/tweetpot.git
