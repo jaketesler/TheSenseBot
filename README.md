@@ -2,9 +2,9 @@ TheSenseBot
 ===========
 
 **Note: The contents of the library submodules <br>
-must be placed in the Arduino 'libraries' folder (inside your sketch folder) for <br>
-the program to function properly. For more info, [see here](http://arduino.cc/en/Guide/Libraries).**
-<br>Because the entire repo isn't required, only certain folders must be copied.
+must be placed in the Arduino 'libraries' folder (inside your sketch folder) for the program to function properly.<br>
+For more info, [see here](http://arduino.cc/en/Guide/Libraries).**
+<br>Because the entire repo for each module isn't required, only certain folders must be copied.
 <br>They are as follows: (repo @ commit /directory/to/move --> move\_to\_here)
 
 *	[arduino\_libraries @ commit] /Time --> libraries folder	
