@@ -22,3 +22,9 @@
 [submodule "libraries/MAX1704"]
 	path = libraries/MAX1704
 	url = https://github.com/MattNewberry/MAX1704.git
+[submodule "libraries/Adafruit_TSL2561"]
+	path = libraries/Adafruit_TSL2561
+	url = https://github.com/adafruit/Adafruit_TSL2561.git
+[submodule "libraries/Adafruit_Sensor"]
+	path = libraries/Adafruit_Sensor
+	url = https://github.com/adafruit/Adafruit_Sensor.git
