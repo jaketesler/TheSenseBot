@@ -5,13 +5,15 @@
 
 /* *************************************************************************
  *    ********* READ THESE INSTRUCTIONS! *********
- *
- *
- *  SDA/SCL uses a G5V-2 Relay
+ *  This project uses a custom enclosure, custom PCB (public design coming soon), various sensors and componentry, including an
+ *  Arduino Pro Mini with an Atmel ATmega328p processor, a Digi International/MaxStream XBee 1mW 802.15.4 Series 1 radio module (with trace antenna), a STMicro LSM303D Accelerometer/Magnetometer and Compass,
+ *  a Freescale MPL3115A2 Temperature and Barometric Pressure sensor, a Honeywell HIH4030 Humidity sensor, a TexasAOS TSL2561 Light and Illumination sensor, a Maxim Integrated DS1307 RTC for Date/Time storage and management (daughtercard), 
+ *  a Maxim MAX17043G+U LiPo Monitoring module, a dual TI TPS61200/Microchip MCP73831T for LiPo regulation and power distribution, a Pololu D24V6F3 and a S10V4F5 for voltage regulation, 
+ *  a PIC16F88-enabled character 20x4 Serial LCD panel, and a SparkFun TTL 654.5nm Class 3A Laser (detachable). 
+ *  
+ *  SDA/SCL control uses a G5V-2 Relay
  *
  *  Modes are as follows: Off - Accelerometer/Compass - Altitude(Atmosphere, Temp, Altitude, Humididy, Pressure) - Light(lux, laser) - Warning
- *  
- *  NOTE: When RELAY pin is HIGH, connect to 5v. When the pin is LOW, connect to 1.4v. 
  *
  * *************************************************************************
  */
@@ -30,7 +32,7 @@
 #include <Adafruit_TSL2561_U.h>
 #include <MPL3115A2.h>
 #include <HIH4030.h>
-#include <Time.h> //custom
+#include <Time.h> //custom-adapted library
 #include <DS1307RTC.h>
 
 
@@ -87,26 +89,23 @@ static double pcbVersion = 1.0;
 #define LSM303_ADDR 0x1D
 
 //Mode Information
-  //volatile signed int mode = -1; //initial mode
-volatile byte mode = -1; //initial mode
-  //volatile signed int prevMode = -1; //mode == 0 initially (really) and this will 
+volatile signed int mode = -1; //initial mode
+volatile signed int prevMode = -1; //mode == 0 initially (really) and this will 
                   //##confirm the check for mode accuracy...[(4)-0-1-2-3] cycle
-volatile byte prevMode = -1;
 volatile boolean initSet = 0; //initial settings for each mode bit
-  //volatile signed int warningShown = -1;
-volatile byte warningShown = -1;
+volatile signed int warningShown = -1;
 
-  //volatile signed int laser_pwr = 0;
-volatile byte laser_pwr = 0;
+volatile signed int laser_pwr = 0;
 volatile boolean xbeeSleep = 0;
 boolean xbeeButtonLED = LOW;
 static int ledLuxLevel = 200; //mode/xbee button led brightness
 
-String curTimeHMS = "";
-boolean timeOn;
+String curTimeHMS;
+String curTimeMDY;
+boolean timeOn; //are we enabling time for this boot?
 
 //Debug On/Off (remember to switch below)
-                                                        static boolean debug = false; //#######SET DEBUG
+                                                        static boolean debug = false; //#######SET DEBUG (Note: this disables XBee/Laser Interrupt)
 
 
 //Animation tracker
@@ -114,10 +113,13 @@ boolean timeOn;
 //static signed int initAnimStep = -17;
 
 
+static int globalDelay = 250; //global event delay in ms (milliseconds)
+
+
 MAX1704 fuelGauge; //I2C - initialize fuel gauge
 MPL3115A2 altbar; //I2C - initialize barometer/altimeter/temperature
 LSM303 lsm; //I2C - initialize compass/accelerometer
-HIH4030 uncalHumid(HIH4030_PIN, HIH4030_SUPPLY_VOLTAGE, ARDUINO_VCC); //I2C - initialize humidity sensor
+//HIH4030 uncalHumid(HIH4030_PIN, HIH4030_SUPPLY_VOLTAGE, ARDUINO_VCC); //I2C - initialize humidity sensor
 HIH4030 calHumid(HIH4030_PIN, HIH4030_SUPPLY_VOLTAGE, ARDUINO_VCC); //I2C - initialize humidity sensor (calibrated)
 Adafruit_TSL2561_Unified tsl = Adafruit_TSL2561_Unified(TSL2561_ADDR_FLOAT, 12345); //I2C - initialize light sensor
 
@@ -159,40 +161,21 @@ void setup()
   
   
   myLCD.begin(9600); //initializes LCD at 9600 baud
-                                                        static boolean debug=false; //#######SET DEBUG
-                                                        if(debug) Serial.begin(9600); //necessary? //#######SET DEBUG
-                                                       
-  if(debug) Serial.println("hello");
-  xbee.begin(115200); //start Xbee 
+  xbee.begin(115200); //start Xbee
+                                                        
+  if(debug) Serial.begin(9600); //necessary? //#######SET DEBUG
   if(debug) Serial.println("boot");
-  //digitalWrite(ONETHREE, LOW); digitalWrite(STAT1, LOW);
-  digitalWrite(STAT1, HIGH);
-  Wire.begin();
-  //LCDturnDisplayOn(); //elsewhere
-  //LCDclearDisplay();  //elsewhere
-  fuelGauge.reset();
-  fuelGauge.quickStart();
-  if(debug) Serial.println("fuel.done");
-  altbar.begin(); //initialize MPL3115A2
-  if(debug) Serial.println("AltSnsr.done");
-  lsm.init();
-  lsm.enableDefault();
-  if(debug) Serial.println("ACM.done");
-  calHumid.calibrate(H_SLOPE, H_OFFSET);
-  if(debug) Serial.println("Humid.done");
-  tsl.begin();
-  configureLightSensor();
-  //displayLightSensorDetails();
-  if(debug) Serial.println("LuxSnsr...done");
-  setSyncProvider(RTC.get);   // the function to get the time from the RTC
-    if (timeStatus() != timeSet) 
-     {timeOn = 0; 
-   if(debug) Serial.println("No RTC");
- }
-  else
-     {timeOn = 1; 
-   if(debug) Serial.println("RTC set");
- }
+  xbee.println("boot");
+  digitalWrite(ONETHREE, LOW); digitalWrite(STAT1, HIGH);
+  Wire.begin(); //delay(5);                                                             //start I2C
+  fuelGauge.reset(); fuelGauge.quickStart(); if(debug) Serial.println("fuel.done");     //initialize LiPo sensor
+  altbar.begin();                            if(debug) Serial.println("AltSnsr.done");  //initialize MPL3115A2
+  lsm.init(); lsm.enableDefault();           if(debug) Serial.println("ACM.done");      //initialize LSM303D
+  calHumid.calibrate(H_SLOPE, H_OFFSET);     if(debug) Serial.println("Humid.done");    //initialize/calibrate HIH4030
+  tsl.begin(); configureLightSensor();       if(debug) Serial.println("LuxSnsr.done");  //initialize TSL2561
+  setSyncProvider(RTC.get);                                                             //the function to get the time from the RTC
+  if (timeStatus() != timeSet) { timeOn = 0; if(debug) {Serial.println("No RTC"); } }   //initialize or kill RTC
+  else                         { timeOn = 1; if(debug) {Serial.println("RTC set"); } }  //we are 1-offing this
   
    /*if (! RTC.isrunning()) {
     Serial.println("RTC is NOT running!");
@@ -224,9 +207,9 @@ void setup()
   LCDturnDisplayOn(); //elsewhere
   LCDclearDisplay(); //clears LCD
   LCDsetPosition(1,1); //splash
-  myLCD.print(F("Jim: SenseBot, A.I.")); xbee.print(F("Jim: SenseBot, A.I."));
+  myLCD.print(F("Jim: SenseBot, A.I.")); xbee.println(F("Jim: SenseBot, A.I."));
   LCDsetPosition(2,1);
-  myLCD.print(F("Built by Jake Tesler")); xbee.print(F("Built by Jake Tesler"));
+  myLCD.print(F("Built by Jake Tesler")); xbee.println(F("Built by Jake Tesler"));
   LCDsetPosition(4,1);
   myLCD.print(F("Loading"));
   /*for(int itime = 0; itime <= 1; itime++)
@@ -247,7 +230,7 @@ void setup()
   
   
   
-  int dotdelay = 100;
+  static int dotdelay = 100;
   LCDsetPosition(4,8); myLCD.print("."); delay(dotdelay);
   LCDsetPosition(4,9); myLCD.print("."); delay(dotdelay);
   LCDsetPosition(4,10); myLCD.print(".");
@@ -268,8 +251,7 @@ void setup()
   LCDsetPosition(3,19); myLCD.print("-"); delay(333);*/
   delay(100);
   LCDclearDisplay();
-  //LCDclearScreenFull();
-   ///    #### We can re-enable these two code blocks for final release
+   ///    #### We can re-enable these two code blocks for final release, unless space is an issue
   
   xbee.println(F("Xbee Sleep..."));
   if(debug) Serial.println(F("Xbee Sleep..."));
@@ -288,7 +270,8 @@ void setup()
   buzz(BUZZER,400,200);  //buzz on pin 9 at 400hz for 200ms
   if(debug) Serial.println(F("AboutToSetupInterrupt"));
   attachInterrupt(0, interrupt0, FALLING); //digital pin 2 //should be last in setup
-  //##########attachInterrupt(1, interrupt1, FALLING); //digital pin 3 //should be last in setup // laser
+  if(!debug)
+  attachInterrupt(1, interrupt1, FALLING); //digital pin 3 //should be last in setup // laser
   //attachInterrupt(0, interrupt0, CHANGE); //digital pin 2
   if(debug) Serial.println("Exit Setup");
 }
@@ -304,8 +287,9 @@ void loop() {
   Serial.print("INITSET ");
   Serial.println(initSet);
   Serial.print("Free Mem:" );
-  Serial.print(freeRam()); Serial.println(" of 1024"); Serial.println();
+  Serial.print(freeRam()); Serial.println(" of 2048"); Serial.println();
   }
+  xbee.print(F("Free Mem:" )); xbee.print(freeRam()); xbee.println(F(" bytes of 2048"));
   
   if (mode == -1)
   {
@@ -334,8 +318,14 @@ void loop() {
         setTime(t);          
       }
       genCurTimeHMS();
+      genCurTimeMDY();
+      if(debug) Serial.print(curTimeMDY);
+      if(debug) Serial.print(" ");
       if(debug) Serial.println(curTimeHMS);
+      xbee.print(curTimeMDY);
+      xbee.print(" ");
       xbee.println(curTimeHMS);
+      
     }
   //GLOBAL BATTERY STAT
   float battLevel = fuelGauge.stateOfCharge();
@@ -367,7 +357,7 @@ void loop() {
   
 
   //delay(500); //delay until next global event  
-  delay(250);
+  delay(globalDelay);
 } //END void loop()
 
 
@@ -476,18 +466,18 @@ void mode0() //off-recharge
 
 void mode1() //Accelerometer/Compass
 {
-  Serial.println("InsideMode1");
+  if(debug)Serial.println("InsideMode1");
   if (initSet != 1)
     {
       initSet = 1; //should be first because of interrupt possibility
-      Serial.println("InitSET To 1");
+      if(debug)Serial.println("InitSET To 1");
       //noInterrupts(); //CANNOT BE HERE, ALREADY IN interrupt0()
      
       if (prevMode == 1 || prevMode == 2 || prevMode == 3) //(prevMode != 0 || prevMode != 4)
       {
         mode = 0;
         initSet = 0;
-        Serial.println("SwitchingTo0, Prev Was 1,2,3");
+        if(debug)Serial.println("SwitchingTo0, Prev Was 1,2,3");
         //return;
       }
       else ////if (prevMode == 0)
@@ -501,14 +491,14 @@ void mode1() //Accelerometer/Compass
       //LCDsetPosition(1,1); myLCD.print("                    ");
       LCDsetPosition(1,1);
       myLCD.print("Where Am I?   ");
-      Serial.println("Where Am I?");
+      if(debug)Serial.println("Where Am I?");
     
       float curHeading = lsm.heading();
       LCDsetPosition(2,1);
       myLCD.print("Heading: ");
       myLCD.print(curHeading);
-      Serial.print("Heading: ");
-      Serial.println(curHeading);
+      if(debug)Serial.print("Heading: ");
+      if(debug)Serial.println(curHeading);
       
       lsm.read();
       
@@ -542,7 +532,7 @@ void mode1() //Accelerometer/Compass
 
 void mode2() //Altitude
 {
-  Serial.println("InsideMode2");
+  if(debug)Serial.println("InsideMode2");
   if (initSet != 1)
     {
       initSet = 1; //should be first because of interrupt possibility
@@ -594,13 +584,15 @@ void mode2() //Altitude
   float curTemp = altbar.readTempF();
   float curTempC = altbar.readTemp();
   float curHumidRHT = calHumid.getTrueRH(curTempC); //calculate true %RH based from Temperature
-  float curUncalHumidRHT = uncalHumid.getTrueRH(curTempC); //calculate true %RH based from Temperature
+  //float curUncalHumidRHT = uncalHumid.getTrueRH(curTempC); //calculate true %RH based from Temperature
   float curHumidRH = calHumid.getSensorRH(); //calculate relative %RH
   
-  Serial.print(curTemp);
-  Serial.println("F");
-  Serial.print(curHumidRHT);
-  Serial.println(" %RH");
+  if(debug) {
+    Serial.print(curTemp);
+    Serial.println("F");
+    Serial.print(curHumidRHT);
+    Serial.println(" %RH");
+  }
   
   LCDsetPosition(2,7);
   if (curTemp > -200)
@@ -627,8 +619,8 @@ void mode2() //Altitude
   }
   else { myLCD.print(">1k kPa [E"); }
 
-  Serial.print(curBarPres);
-  Serial.println(" Pa");
+  if(debug)Serial.print(curBarPres);
+  if(debug)Serial.println(" Pa");
   
 
   LCDsetPosition(4,11);
@@ -648,7 +640,7 @@ void mode2() //Altitude
 
 void mode3() //
 {
-  Serial.println(F("InsideMode3"));
+  if(debug)Serial.println(F("InsideMode3"));
   if (initSet != 1)
     {
       initSet = 1; //should be first because of interrupt possibility
@@ -693,7 +685,7 @@ void mode3() //
        sensor_t lightSensor;
        tsl.getSensor(&lightSensor);
   if(debug) { Serial.print  ("Max Value:    "); Serial.print(lightSensor.max_value); Serial.println(" lux"); //test whether this changes, if not we may be able to make it only inquire once in setup
-  Serial.print  ("Min Value:    "); Serial.print(lightSensor.min_value); Serial.println(" lux"); }
+              Serial.print  ("Min Value:    "); Serial.print(lightSensor.min_value); Serial.println(" lux"); }
      
      
      sensors_event_t event;
@@ -714,8 +706,8 @@ void mode3() //
      analogWrite(BUTTONLED, map(currentLuxLevel, lightSensor.min_value, lightSensor.max_value, 50, 255)); //set the brightness of the LED to ~room brightness
      
      //Blink XBee Button LED
-     if (xbeeButtonLED == HIGH) { digitalWrite(XBEELED, LOW); } //turn off XBee Button LED
-     else { analogWrite(XBEELED, ledLuxLevel); } ////turn on XBBL
+     if (xbeeButtonLED) { digitalWrite(XBEELED, LOW); }        //turn off XBee Button LED
+     else               { analogWrite(XBEELED, ledLuxLevel); } //turn on XBBL to light level
      xbeeButtonLED = !xbeeButtonLED;
      
      //Laser strobe
@@ -828,34 +820,13 @@ void interrupt0()
     //prevmode = 4; ##previous mode would be 0, since technically "mode 4" isn't really a mode
     Serial.println("switchWarnShown1");
   }
-  else if(mode == 1 && warningShown == 2)
-  {
-    mode = 2;
-    Serial.println("switchto2");
-  }
-  else if(mode == 0 && warningShown == 2)
-  {
-    mode = 1; 
-    Serial.println("switchto1");
-  }
-  else if(mode == 2 && warningShown == 2)
-  {
-    mode = 3; 
-    Serial.println("switchto3");
-  }
-  else if(mode == 3 && warningShown == 2)
-  {
-    mode = 0;
-    Serial.println("switchto0");
-  }
-  else
-  {
-    mode = 0;
-    Serial.println("switchfrom_elseto0");
-  } 
+  else if(mode == 1 && warningShown == 2) { mode = 2; if(debug)Serial.println("switchto2"); }
+  else if(mode == 0 && warningShown == 2) { mode = 1; if(debug)Serial.println("switchto1"); }
+  else if(mode == 2 && warningShown == 2) { mode = 3; if(debug)Serial.println("switchto3"); }
+  else if(mode == 3 && warningShown == 2) { mode = 0; if(debug)Serial.println("switchto0"); }
+  else                                    { mode = 0; if(debug)Serial.println("switchfrom_elseto0"); } 
   
   initSet = 0;
-  //Serial.print("INITSET "); //Serial.println(initSet);
   //digitalWrite(BUTTONLED, HIGH);
   //Serial.print("Interrupt Set Mode: "); //  Serial.println(mode);
   analogWrite(BUTTONLED, ledLuxLevel);
@@ -1036,6 +1007,15 @@ void genCurTimeHMS() {
   curTimeHMS += second();
   curTimeHMS += " ";
   curTimeHMS += meridian();
+}
+
+void genCurTimeMDY() {
+  curTimeMDY = "";
+  curTimeMDY += month();
+  curTimeMDY += "/";
+  curTimeMDY += day();
+  curTimeMDY += "/";
+  curTimeMDY += year();
 }
 
 /*  code to process time sync messages from the serial port   */
