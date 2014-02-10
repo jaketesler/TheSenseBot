@@ -183,23 +183,21 @@ void setup()
   digitalWrite(XBEELED, ledLuxLevel); //XBee Button LED
 
 
-  myLCD.begin(9600);                                                                        //initializes LCD at 9600 baud
-  xbee.begin(115200);                                                                       //start XBee
-
+  myLCD.begin(9600);                                      //initializes LCD at 9600 baud
+  xbee.begin(115200);                                     //start XBee
   if(debug_setup) Serial.begin(9600);
   if(debug_setup) Serial.println("boot");
   xbee.println("boot");
   digitalWrite(MCUONLED, LOW);
-  Wire.begin(); //delay(5);                                                                 //start I2C
-  fuelGauge.reset(); fuelGauge.quickStart(); if(debug_setup) Serial.println("fuel.done");         //initialize LiPo capacity sensor
-  altbar.begin();                            if(debug_setup) Serial.println("AltSnsr.done");      //initialize MPL3115A2
-  lsm.init(); lsm.enableDefault();           if(debug_setup) Serial.println("ACM.done");          //initialize LSM303D
-  calHumid.calibrate(H_SLOPE, H_OFFSET);     if(debug_setup) Serial.println("Humid.done");        //initialize/calibrate HIH4030
-  //tsl.begin(); configureLightSensor();       if(debug_setup) Serial.println("LuxSnsr.done");      //initialize TSL2561
-  tsl.begin(); tsl.setPowerUp(); tsl.setTiming(tslGain,tslTime,msInt);
-  setSyncProvider(RTC.get);               /* if(debug_setup) Serial.println("Get RTC"); */        //the function to get the time from the RTC
-  if (timeStatus() != timeSet) { timeOn = 0; if(debug_setup) Serial.println("No RTC"); }          //initialize or permanently kill RTC           
-  else                         { timeOn = 1; if(debug_setup) Serial.println("RTC set"); }         //we are 1-offing this
+  Wire.begin(); //delay(5);                               //start I2C
+  fuelGauge.reset(); fuelGauge.quickStart();                            if(debug_setup) Serial.println("fuel.done");         //initialize LiPo capacity sensor
+  altbar.begin();                                                       if(debug_setup) Serial.println("AltSnsr.done");      //initialize MPL3115A2
+  lsm.init(); lsm.enableDefault();                                      if(debug_setup) Serial.println("ACM.done");          //initialize LSM303D
+  calHumid.calibrate(H_SLOPE, H_OFFSET);                                if(debug_setup) Serial.println("Humid.done");        //initialize/calibrate HIH4030
+  tsl.begin(); tsl.setPowerUp(); tsl.setTiming(tslGain,tslTime,msInt);  if(debug_setup) Serial.println("LuxSnsr.done");      //initialize TSL2561
+  setSyncProvider(RTC.get);                                          /* if(debug_setup) Serial.println("Get RTC"); */        //the function to get the time from the RTC
+  if (timeStatus() != timeSet) { timeOn = 0;                            if(debug_setup) Serial.println("No RTC"); }          //initialize or permanently kill RTC           
+  else                         { timeOn = 1;                            if(debug_setup) Serial.println("RTC set"); }         //we are 1-offing this
 
   /*if (! RTC.isrunning()) {
    Serial.println("RTC is NOT running!");
@@ -207,15 +205,21 @@ void setup()
    //RTC.adjust(DateTime(__DATE__, __TIME__));
    }*/
 
- if(!tsl.begin())
+ /*if(!tsl.begin())
   {
-    /* There was a problem detecting the TSL2561 ... check your connections */
+    //There was a problem detecting the TSL2561 ... check your connections
     xbee.print(F("Ooops, no TSL2561 detected ... Check your wiring or I2C ADDR!"));
     statusLight(1,0,1);
     delay(10000);
-  }
+  }*/
   
-
+  xbee.println(F("XBee Sleep..."));
+  if(debug_setup) Serial.println(F("XBee Sleep..."));
+  digitalWrite(XBEESLEEPD, xbeeSleep); //start XBee sleep
+  xbeeButtonLED = HIGH;
+  analogWrite(XBEELED, ledLuxLevel); //turn on XBee Button LED
+  xbee.println(F("done. If you're reading this, you're not on wireless (or something broke)."));
+  if(debug_setup) Serial.println(F("done. If you're reading this, you're not on wireless (or something broke)."));
 
   //delay(500);
   /*digitalWrite(MCUONLED, LOW);
@@ -224,49 +228,28 @@ void setup()
   delay(500);*/
   digitalWrite(MCUONLED, HIGH);
   digitalWrite(STAT1, LOW);
-  /*
-  LCDbrightness(255);
-   LCDturnDisplayOn(); //elsewhere
-   LCDclearScreen(); //clears LCD
-   LCDsetPosition(1,1); //splash
-   myLCD.print(" The COM-BAT System ");
-   LCDsetPosition(2,1);
-   myLCD.print("Built by Jake Tesler");
-   LCDsetPosition(4,1);
-   myLCD.print("Loading...");
-   */
+
+  //LCDbrightness(255); //increases binary size a lot
+  LCDturnDisplayOn(); LCDclearScreen(); //clears LCD
+  LCDsetPosition(1,1); myLCD.print(F("Jim: SenseBot, A.I.")); xbee.println(F("Jim: SenseBot, A.I.")); //splash
+  LCDsetPosition(2,1); myLCD.print(F("Built by Jake Tesler")); xbee.println(F("Built by Jake Tesler"));
+  LCDsetPosition(4,1); myLCD.print(F("Loading"));
+  for(int itime = 0; itime <= 1; itime++)
+  { 
+    LCDsetPosition(4,8); myLCD.print("   ");
+    int curDot = 0;
+    for(int pixeldot = 1; pixeldot < 4; pixeldot++);
+    {
+      LCDsetPosition(4, curDot+8); myLCD.print(".");
+      curDot++;
+      delay(300);
+    }
+    delay(300);
+  }
 
 
-
-  LCDturnDisplayOn(); //elsewhere
-  LCDclearScreen(); //clears LCD
-  LCDsetPosition(1,1); //splash
-  myLCD.print(F("Jim: SenseBot, A.I.")); 
-  xbee.println(F("Jim: SenseBot, A.I."));
-  LCDsetPosition(2,1);
-  myLCD.print(F("Built by Jake Tesler")); 
-  xbee.println(F("Built by Jake Tesler"));
-  LCDsetPosition(4,1);
-  myLCD.print(F("Loading"));
-  /*for(int itime = 0; itime <= 1; itime++)
-   { 
-   LCDsetPosition(4,8);
-   myLCD.print("   ");
-   int curDot = 0;
-   for(int pixeldot = 1; pixeldot < 4; pixeldot++);
-   {
-   LCDsetPosition(4, curDot+8);
-   myLCD.print(".");
-   curDot++;
-   delay(300);
-   }
-   
-   delay(300);
-   }*/
-
-
-
-  static int dotdelay = 100;
+/*
+  const int dotdelay = 100;
   LCDsetPosition(4,8); 
   myLCD.print("."); 
   delay(dotdelay);
@@ -275,7 +258,8 @@ void setup()
   delay(dotdelay);
   LCDsetPosition(4,10); 
   myLCD.print(".");
-  delay(750);
+  delay(750);*/
+  
   /*LCDsetPosition(4,8); myLCD.print("   "); delay(dotdelay);
    LCDsetPosition(4,8); myLCD.print("."); delay(dotdelay);
    LCDsetPosition(4,9); myLCD.print("."); delay(dotdelay);
@@ -290,17 +274,9 @@ void setup()
    LCDsetPosition(4,20); myLCD.print("?"); delay(333);
    LCDsetPosition(3,19); myLCD.print("_"); delay(167);
    LCDsetPosition(3,19); myLCD.print("-"); delay(333);*/
-  delay(100);
+  delay(50);
   LCDclearScreen();
   ///    #### We can re-enable these two code blocks for final release, unless space is an issue
-
-  xbee.println(F("XBee Sleep..."));
-  if(debug_setup) Serial.println(F("XBee Sleep..."));
-  digitalWrite(XBEESLEEPD, xbeeSleep); //start XBee sleep
-  xbeeButtonLED = HIGH;
-  analogWrite(XBEELED, ledLuxLevel); //turn on XBee Button LED
-  xbee.println(F("done. If you're reading this, you're not on wireless (or something broke)."));
-  if(debug_setup) Serial.println(F("done. If you're reading this, you're not on wireless (or something broke)."));
 
 
   //warningShown = 0;  //initialize warning system
@@ -320,19 +296,13 @@ void loop() {
 
   //##DEBUG
   if(debug_loop) {
-    Serial.print("MODE ");
-    Serial.println(mode);
+    Serial.print("MODE "); Serial.println(mode);
     //Serial.println(fuelGauge.stateOfCharge());
-    Serial.print("INITSET ");
-    Serial.println(initSet);
-    Serial.print("Free Mem:" );
-    Serial.print(freeRam()); 
-    Serial.println(" of 2048"); 
+    Serial.print("INITSET "); Serial.println(initSet);
+    Serial.print("Free Mem:" ); Serial.print(freeRam()); Serial.println(" of 2048"); 
     Serial.println();
   }
-  xbee.print(F("Free Mem: ")); 
-  xbee.print(freeRam()); 
-  xbee.println(F(" bytes of 2048"));
+  if (debug_verbose) { xbee.print(F("Free Mem: ")); xbee.print(freeRam()); xbee.println(F(" bytes of 2048")); }
 
   if (mode == -1)
   {
@@ -417,23 +387,22 @@ void loop() {
   }
 
 
-
-  if (mode == 1) { 
-    mode1(); 
-  } //accelerometer/compass
-  if (mode == 2) { 
-    mode2(); 
-  } //atmospheric mode2
-  if (mode == 0) { 
-    mode0(); 
-  } //off-recharge0
-  if (mode == 3) { 
-    mode3(); 
-  } //lux/laser
-  if (mode == 4) { 
-    mode4(); 
-  } //initial science warning
-
+  switch(mode)
+    {
+      case 1: mode1(); break;
+      case 2: mode2(); break;
+      case 0: mode0(); break;
+      case 3: mode3(); break;
+      case 4: mode4(); break;
+      default: mode0();
+    }
+  /*
+  if (mode == 1) { mode1(); } //accelerometer/compass
+  if (mode == 2) { mode2(); } //atmospheric mode2
+  if (mode == 0) { mode0(); } //off-recharge0
+  if (mode == 3) { mode3(); } //lux/laser
+  if (mode == 4) { mode4(); } //initial science warning
+  */
 
   //delay(500); //delay until next global event  
   delay(globalDelay);
@@ -515,13 +484,8 @@ void mode0() //off-recharge
     //Uptime reporting
     LCDsetPosition(4, 1); 
     myLCD.print("Up: ");
-    if(millis()/1000 >= 60) {
-      myLCD.print((millis()/1000)/60,1); 
-      myLCD.print("m"); 
-    } //mins
-    myLCD.print(((millis()/1000) % 60),1);
-    myLCD.print("s"); //secs
-
+    if(millis()/1000 >= 60) { myLCD.print((millis()/1000)/60,1); myLCD.print("m"); } //mins
+    myLCD.print(((millis()/1000) % 60),1); myLCD.print("s"); //secs
   }
   /*else
    {
@@ -539,41 +503,55 @@ void mode1() //Accelerometer/Compass
     if(debug_mode1)Serial.println("InitSET To 1");
     if (prevMode == 1 || prevMode == 2 || prevMode == 3) //(prevMode != 0 || prevMode != 4)
     {
-      mode = 0;
-      initSet = 0;
+      mode = 0; initSet = 0;
       if(debug_mode1)Serial.println("SwitchingTo0, Prev Was 1,2,3");
-
-      //This block is to generate an error if the sensor isn't present, as we know this stalls the MCU.
-      statusLight(0,1,1); 
-      lsm.heading(); 
-      digitalWrite(ERRORLED, LOW); 
-      digitalWrite(STAT2, LOW);
     }
-
     else {  ////if (prevMode == 0)
+      LCDclearScreen(); delay(50);
+      LCDsetPosition(4,1); myLCD.print("LOADING...");
+      statusLight(0,1,1); lsm.heading(); statusLight(0,0,0); //This is to generate an error if the sensor isn't present, as we know this stalls the MCU.
+      LCDclearScreen();
       prevMode = 1; 
-      LCDclearScreen(); 
-      LCDsetPosition(1,1); 
-      myLCD.print("Where Am I?   ");
+      LCDsetPosition(1,1); myLCD.print("Where Am I?   ");
       if(debug_mode1)Serial.println("Where Am I?");
-      LCDsetPosition(2,1); 
-      myLCD.print("Heading:");
+      LCDsetPosition(2,1); myLCD.print("Heading:");
+    /*LCDsetPosition(3,1);
+      myLCD.print("A X: ");
+      LCDsetPosition(3,8);
+      myLCD.print("Y: ");
+      LCDsetPosition(3,15);
+      myLCD.print("Z: ");
+      myLCD.print(lsm.a.z);
+      LCDsetPosition(4,1);
+      myLCD.print("M X: ");
+      LCDsetPosition(4,8);
+      myLCD.print("Y: ");
+      LCDsetPosition(4,15);
+      myLCD.print("Z: ");
+      myLCD.print(lsm.m.z);*/
     } 
-
+    analogWrite(BUTTONLED, 0);
+    delay(200);
+    interrupts();
+    analogWrite(BUTTONLED, ledLuxLevel);
+    buzz(BUZZER,400,200);  //buzz on pin 9 at 400hz for 200ms
   }
 
   float curHeading = lsm.heading();
   /*LCDsetPosition(2,1);
    myLCD.print("Heading: "); myLCD.print(curHeading);*/  //This would save space
-  LCDsetPosition(2,9); 
-  myLCD.print(curHeading);
-  if(debug_mode1) { 
-    Serial.print("Heading: "); 
-    Serial.println(curHeading); 
-  }
+  LCDsetPosition(2,9); myLCD.print(curHeading);
+  if(debug_mode1) { Serial.print("Heading: "); Serial.println(curHeading); }
 
   lsm.read();
+/*LCDsetPosition(3,5);  myLCD.print(lsm.a.x);
+  LCDsetPosition(3,11); myLCD.print(lsm.a.y);
+  LCDsetPosition(3,18); myLCD.print(lsm.a.z);
+  LCDsetPosition(4,5);  myLCD.print(lsm.m.x);
+  LCDsetPosition(4,11); myLCD.print(lsm.m.y);
+  LCDsetPosition(4,18); myLCD.print(lsm.m.z);*/
 
+  
   LCDsetPosition(3,1);
   myLCD.print("A X: ");
   myLCD.print(lsm.a.x);
@@ -588,46 +566,28 @@ void mode1() //Accelerometer/Compass
   myLCD.print(lsm.m.y);
   myLCD.print("Z: ");
   myLCD.print(lsm.m.z);
-
-  analogWrite(BUTTONLED, 0);
-  delay(200);
-  interrupts();
-  analogWrite(BUTTONLED, ledLuxLevel);
-  buzz(BUZZER,400,200);  //buzz on pin 9 at 400hz for 200ms
-
-
-
 }
 
 void mode2() //Altitude
 {
-  if(debug_mode2)Serial.println("InsideMode2");
+  if(debug_mode2) Serial.println("InsideMode2");
   if (initSet != 1)
   {
     initSet = 1; //should be first because of interrupt possibility
     //noInterrupts(); //CANNOT BE HERE, ALREADY IN interrupt0
-    if (prevMode != 1)
-    {
-      mode = 1;
-      initSet = 0;
-    }
-    else { 
-      prevMode = 2; 
-    }
+    if (prevMode != 1) { mode = 1; initSet = 0; }
+    else                 prevMode = 2;
 
     LCDclearScreen();
     delay(50);
-    LCDclearScreen();
-    delay(100);
 
-    LCDsetPosition(4,1); 
-    myLCD.print("LOADING...");
+    LCDsetPosition(4,1); myLCD.print("LOADING...");
 
     //EEPROM.write(1,2);
 
 
     analogWrite(BUTTONLED, 0);
-    delay(200);
+    delay(50);
     interrupts();
     analogWrite(BUTTONLED, ledLuxLevel);
     buzz(BUZZER,400,200);  //buzz on pin 9 at 400hz for 200ms
@@ -638,14 +598,10 @@ void mode2() //Altitude
     //LCDclearScreenFull();
 
 
-    LCDsetPosition(1,1); 
-    myLCD.print("Atmospheric");
-    LCDsetPosition(2,1); 
-    myLCD.print("Temp:");
-    LCDsetPosition(3,1); 
-    myLCD.print("Pressure:");
-    LCDsetPosition(4,1); 
-    myLCD.print("Altitude:");
+    LCDsetPosition(1,1); myLCD.print("Atmospheric");
+    LCDsetPosition(2,1); myLCD.print("Temp:");
+    LCDsetPosition(3,1); myLCD.print("Pressure:");
+    LCDsetPosition(4,1); myLCD.print("Altitude:");
 
 
     //interrupts();
@@ -662,8 +618,7 @@ void mode2() //Altitude
   {
     LCDsetPosition(2,7);
     myLCD.print(curTemp, 1); //prints the temperature to LCD with one decimal place
-    myLCD.write(0b11011111);
-    myLCD.print("F | H");
+    myLCD.write(0b11011111); myLCD.print("F | H");
     //humidity
     myLCD.print(curHumidRHT, 1); //prints the humidity with one decimal place
     myLCD.write(0b00100101); //'%'
@@ -673,37 +628,22 @@ void mode2() //Altitude
   }
 
   if(debug_mode2) {
-    Serial.print(curTemp);
-    Serial.println("F | ");
-    Serial.print(curHumidRHT);
-    Serial.println("% RH");
+    Serial.print(curTemp); Serial.println("F | ");
+    Serial.print(curHumidRHT); Serial.println("% RH");
   }
 
   LCDsetPosition(3,11);
   float curBarPres = altbar.readPressure();
-  if (curBarPres < 115000) { 
-    myLCD.print(curBarPres, 0); 
-    myLCD.print(" Pa"); 
-  }
-  else { 
-    myLCD.print(">1k kPa"); 
-  }
-  if(debug_mode2) { 
-    Serial.print(curBarPres); 
-    Serial.println(" Pa"); 
-  }
+  if (curBarPres < 115000) { myLCD.print(curBarPres, 0); myLCD.print(" Pa"); }
+  else                     { myLCD.print(">1k kPa"); }
+  if(debug_mode2) { Serial.print(curBarPres); Serial.println(" Pa"); }
 
 
 
   LCDsetPosition(4,11);
   float curBarAlt = altbar.readAltitudeFt();
-  if (curBarAlt < 10000 && curBarAlt > -2000) { 
-    myLCD.print((curBarAlt), 1); 
-    myLCD.print(" Ft."); 
-  }//(" Feet ");
-  else { 
-    myLCD.print(">10k Feet"); 
-  }
+  if (curBarAlt < 12000 && curBarAlt > -2000) { myLCD.print((curBarAlt), 1); myLCD.print(" Ft."); } //(" Feet ");
+  else                                        { myLCD.print(">10k Feet"); }
 
 
   //Serial.println(curTemp);
@@ -716,26 +656,18 @@ void mode3() //
   if(debug_mode3)Serial.println(F("InsideMode3"));
   if (initSet != 1) {
     initSet = 1; //should be first because of interrupt possibility
-    if (prevMode != 2)
-    {
-      mode = 2;
-      initSet = 0;
-    }
-    else { 
-      prevMode = 3; 
-    }
-
+    if (prevMode != 2) { mode = 2; initSet = 0; }
+    else               { prevMode = 3;  }
     LCDclearScreen(); 
-    delay(100);
+    delay(50);
 
-    LCDsetPosition(4,1); 
-    myLCD.print("LOADING...");
+    LCDsetPosition(4,1); myLCD.print("LOADING...");
 
     //EEPROM.write(1,2);
 
 
-    analogWrite(BUTTONLED, 0);
-    delay(200);
+    digitalWrite(BUTTONLED, LOW);
+    delay(50);
     interrupts();
     analogWrite(BUTTONLED, ledLuxLevel);
     buzz(BUZZER,400,200);  //buzz on pin 9 at 400hz for 200ms
@@ -747,13 +679,10 @@ void mode3() //
 
 
     //LCDsetPosition(1,1); 
-    LCDsetPosition(1,1); 
-    myLCD.print("Light Sensors");
-    LCDsetPosition(2,1); 
-    myLCD.print("Lux: ");
+    LCDsetPosition(1,1); myLCD.print("Light Sensors");
+    LCDsetPosition(2,1); myLCD.print("Lux: ");
     //LCDsetPosition(3,1);
-    LCDsetPosition(4,1); 
-    myLCD.print("Laser: Press Button");
+    LCDsetPosition(4,1); myLCD.print("Laser: Press Button");
 
     //interrupts();
     //delay(100);
@@ -762,35 +691,33 @@ void mode3() //
   double currentLuxLevel;
   static int tslSwitchCounter;
   unsigned int data0, data1;
+  const int switchCount = 15; //the number of intervals that elapse before we switch back
+  
   if (tsl.getData(data0,data1)) { //if we have connectivity
-    
-    if (tslSwitchCounter > 20)
+    if (tslSwitchCounter > switchCount)
     {
-      msInt=402; tslTime=2; //0 = 13.7ms, 1 = 101ms, 2 = 402ms, 3 = manual
+      msInt=402; tslTime=2; //0 = 13.7ms, 1 = 101ms, 2 = 402ms, 3 = manual, make sure to set both vars
       tsl.setTiming(tslGain,tslTime,msInt);
       tslSwitchCounter = 0;
     }
     else if (tslSwitchCounter > 0) { tslSwitchCounter++; }
     
-    boolean good = tsl.getLux(tslGain,msInt,data0,data1,currentLuxLevel); //do we have a good value [this also generates lux value]
+    boolean good = tsl.getLux(tslGain,msInt,data0,data1,currentLuxLevel); //do we have a good (in-bounds) value [this line also generates lux value]
     if (data0 == 65535 || data1 == 65535)
     {
       msInt=101; tslTime=1; //0 = 13.7ms, 1 = 101ms, 2 = 402ms, 3 = manual
       tsl.setTiming(tslGain,tslTime,msInt);
-      Serial.println("switcing");
-      LCDsetPosition(3,5); 
-      myLCD.print("Switching int ms"); 
+      if(debug_verbose) xbee.println("Switching light integration");
+      LCDsetPosition(3,5); myLCD.print("Switch integration"); 
       delay(500);
       tslSwitchCounter = 1;
     }
-    
-    LCDsetPosition(3,5); 
-    myLCD.print(currentLuxLevel); 
-    if(tslSwitchCounter > 0) { myLCD.print("sw"); }
-    myLCD.print(" | d0: ");
-    myLCD.print(data0);
-    myLCD.print(" d1: ");
-    myLCD.print(data1);
+    if (good) {
+      LCDsetPosition(3,5); myLCD.print(currentLuxLevel); 
+      if(tslSwitchCounter > 0) { myLCD.print("sw"); } //if we have temporarily switched
+      myLCD.print(" | d0: "); myLCD.print(data0);
+      myLCD.print(" d1: "); myLCD.print(data1);
+    }
   }
   else
   {
@@ -805,27 +732,13 @@ void mode3() //
   
 
   //Blink XBee Button LED
-  if (xbeeButtonLED) { 
-    digitalWrite(XBEELED, LOW); 
-  }        //turn off XBee Button LED
-  else               { 
-    analogWrite(XBEELED, ledLuxLevel); 
-  } //turn on XBBL to light level
+  if (xbeeButtonLED) digitalWrite(XBEELED, LOW);        //turn off XBee Button LED
+  else               analogWrite(XBEELED, ledLuxLevel); //turn on XBBL to light level
   xbeeButtonLED = !xbeeButtonLED;
 
   //Laser strobe
-  if (laser_pwr == 4)
-  {
-    digitalWrite(LASEREN, LOW); 
-    digitalWrite(STAT2, HIGH); //enable laser
-    laser_pwr = 3;
-  }
-  else if (laser_pwr == 3)
-  {
-    digitalWrite(LASEREN, HIGH); 
-    digitalWrite(STAT2, LOW); //disable laser
-    laser_pwr = 4;
-  }
+  if (laser_pwr == 4)      { digitalWrite(LASEREN, LOW); digitalWrite(STAT2, HIGH); laser_pwr = 3; } //enable laser
+  else if (laser_pwr == 3) { digitalWrite(LASEREN, HIGH); digitalWrite(STAT2, LOW); laser_pwr = 4; } //disable laser
 
 }
 
@@ -854,18 +767,14 @@ void mode4() //warning
       //interrupts(); //moved up
       if (curWarnScreen)
       {
-        LCDsetPosition(1,1); 
-        myLCD.print(F("WARNING: Do not use this robot for scien-tific purposes, as"));
-        LCDsetPosition(4,1); 
-        myLCD.print(F("Press to continue..."));
+        LCDsetPosition(1,1); myLCD.print(F("WARNING: Do not use this robot for scien-tific purposes, as"));
+        LCDsetPosition(4,1); myLCD.print(F("Press to continue..."));
         //delay(100); 
       }
       else //if (!(curWarnScreen)) //
       {
-        LCDsetPosition(1,1); 
-        myLCD.print(F("it may sometimes    "));
-        LCDsetPosition(2,1); 
-        myLCD.print(F("yield inaccurate or imprecise data.     "));
+        LCDsetPosition(1,1); myLCD.print(F("it may sometimes    "));
+        LCDsetPosition(2,1); myLCD.print(F("yield inaccurate or imprecise data.     "));
         //delay(100); 
       }
 
@@ -903,15 +812,12 @@ volatile unsigned long last_interrupt_time = 0;
 void interrupt0()
 {
   //debounce protection
-
   //interrupt_time = millis();
   // If interrupts come faster than 200ms, assume it's a bounce and ignore
   if (millis() - last_interrupt_time > 200) 
   {
     noInterrupts();
-    if(mode != -1) { 
-      buzz(BUZZER,500,200); 
-    } //buzz on pin 9 at 500hz for 200ms
+    if(mode != -1) { buzz(BUZZER,500,200); } //buzz on pin 9 at 500hz for 200ms
     Serial.println("InsideInterrupt");
     digitalWrite(MCUONLED, LOW); 
     statusLight(0,0,1);
@@ -932,26 +838,11 @@ void interrupt0()
       //prevmode = 4; ##previous mode would be 0, since technically "mode 4" isn't really a mode
       Serial.println("switchWarnShown1");
     }
-    else if(mode == 1 && warningShown == 2) { 
-      mode = 2; 
-      if(debug_int0)Serial.println("switchto2"); 
-    }
-    else if(mode == 0 && warningShown == 2) { 
-      mode = 1; 
-      if(debug_int0)Serial.println("switchto1"); 
-    }
-    else if(mode == 2 && warningShown == 2) { 
-      mode = 3; 
-      if(debug_int0)Serial.println("switchto3"); 
-    }
-    else if(mode == 3 && warningShown == 2) { 
-      mode = 0; 
-      if(debug_int0)Serial.println("switchto0"); 
-    }
-    else                                    { 
-      mode = 0; 
-      if(debug_int0)Serial.println("switchfrom_elseto0"); 
-    } 
+    else if(mode == 1 && warningShown == 2) { mode = 2; if(debug_int0)Serial.println("switchto2"); }
+    else if(mode == 0 && warningShown == 2) { mode = 1; if(debug_int0)Serial.println("switchto1"); }
+    else if(mode == 2 && warningShown == 2) { mode = 3; if(debug_int0)Serial.println("switchto3");  }
+    else if(mode == 3 && warningShown == 2) { mode = 0; if(debug_int0)Serial.println("switchto0");  }
+    else                                    { mode = 0; if(debug_int0)Serial.println("switchfrom_elseto0"); } 
 
     initSet = 0;
     //digitalWrite(BUTTONLED, HIGH);
@@ -993,6 +884,21 @@ void interrupt1() {
 
 
     if (mode == 3) {
+      switch(laser_pwr)
+      {
+        case 0:   digitalWrite(LASEREN, LOW); laser_pwr = 255; break;
+        case 255: analogWrite(LASEREN, 127);  laser_pwr = 127; break;
+        case 127: analogWrite(LASEREN, 77);   laser_pwr = 77;  break;
+        case 77:  analogWrite(LASEREN, 40);   laser_pwr = 40;  break;
+        case 40:  digitalWrite(LASEREN, LOW); laser_pwr = 4;   break;
+        case 4:   digitalWrite(LASEREN, HIGH); digitalWrite(STAT2, LOW); laser_pwr = 0; break;
+        case 3:   digitalWrite(LASEREN, HIGH); digitalWrite(STAT2, LOW); laser_pwr = 0; break;
+        default:
+          digitalWrite(LASEREN, HIGH); digitalWrite(STAT2, LOW); laser_pwr = 0; //disable laser
+          if(debug_verbose) xbee.println(F("Laser Var Error"));
+      }
+      if (laser_pwr > 0 && laser_pwr < 10) digitalWrite(STAT2, HIGH); //effectively, if laser is on (but we don't deal with strobing here) 
+      /*
       if (laser_pwr == 0)        { digitalWrite(LASEREN, LOW); laser_pwr = 255; } //enable laser
       else if (laser_pwr == 255) { analogWrite(LASEREN, 127); laser_pwr = 127; }
       else if (laser_pwr == 127) { analogWrite(LASEREN, 77); laser_pwr = 77; }
@@ -1003,9 +909,9 @@ void interrupt1() {
       else
       {
         digitalWrite(LASEREN, HIGH); digitalWrite(STAT2, LOW); laser_pwr = 0; //disable laser
-        xbee.println(F("Laser Var Error"));
-      }
-      if (laser_pwr > 0 && laser_pwr < 10) digitalWrite(STAT2, HIGH); //effectively, if laser is on (but we don't deal with strobing here) 
+        if(debug_verbose) xbee.println(F("Laser Var Error"));
+      }*/
+      
     }
 
     else { //mode != 3
@@ -1147,34 +1053,19 @@ void printTSLError(byte error)
   // If there's an I2C error, this function will
   // print out an explanation.
 {
-  if(debug_mode3) {
-    xbee.print("I2C error: ");
-    xbee.print(error,DEC);
-    xbee.print(", ");
-    
+  if(debug_mode3) { 
+    xbee.print("I2C error: "); xbee.print(error,DEC); xbee.print(", ");
     switch(error)
     {
-      case 0:
-        xbee.println("success");
-        break;
-      case 1:
-        xbee.println("data too long for transmit buffer");
-        break;
-      case 2:
-        xbee.println("received NACK on address (disconnected?)");
-        break;
-      case 3:
-        xbee.println("received NACK on data");
-        break;
-      case 4:
-        xbee.println("other error");
-        break;
-      default:
-        xbee.println("unknown error");
+      case 0: xbee.println("success"); break;
+      case 1: xbee.println("data too long for transmit buffer"); break;
+      case 2: xbee.println("received NACK on address (disconnected?)"); break;
+      case 3: xbee.println("received NACK on data"); break;
+      case 4: xbee.println("other error"); break;
+      default: xbee.println("unknown error");
     }
   }
 }
-
 
 /* SWITCH HOLD [DEBOUNCE?] CODE?????
  int varSWITCH_PIN = 0;  //variable to store switch presses
