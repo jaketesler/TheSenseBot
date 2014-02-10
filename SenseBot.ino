@@ -125,14 +125,14 @@ boolean timeOn; //are we enabling time for this boot?
 //Debug On/Off (remember to switch below)
 
  
-   boolean tslGain = 0;  // Gain setting, 0 = X1, 1 = X16;
-    unsigned char tslTime = 2;
-    unsigned int msInt;  // Integration ("shutter") time in milliseconds
-    //static int tslSwitchCounter = 0;
+boolean tslGain = 0;  // Gain setting, 0 = X1, 1 = X16;
+unsigned char tslTime = 2; //integration time constant //0 = 13.7ms, 1 = 101ms, 2 = 402ms, 3 = manual, make sure to set both vars
+unsigned int msInt;  // Integration ("shutter") time in milliseconds
+//static int tslSwitchCounter = 0;
 
 //Animation tracker
 //signed int animStep = -17; //tracker for confusedAnimation()
-//static signed int initAnimStep = -17;
+//const signed int initAnimStep = -17;
 
 
 const int globalDelay = 250; //global event delay in ms (milliseconds)
@@ -142,7 +142,6 @@ MAX1704 fuelGauge;  //I2C - initialize fuel gauge
 MPL3115A2 altbar;   //I2C - initialize barometer/altimeter/temperature
 LSM303 lsm;         //I2C - initialize compass/accelerometer
 SFE_TSL2561 tsl;
-//TSL2561 tsl = TSL2561(TSL2561_ADDR_FLOAT, 12345); //I2C - initialize light sensor
 HIH4030 calHumid(HIH4030_PIN, HIH4030_SUPPLY_VOLTAGE, ARDUINO_VCC);              //Analog - initialize humidity sensor (calibrated)
 //HIH4030 uncalHumid(HIH4030_PIN, HIH4030_SUPPLY_VOLTAGE, ARDUINO_VCC);          //Analog - initialize humidity sensor
 
@@ -173,7 +172,7 @@ void setup()
   pinMode(A6, OUTPUT);   //MCU Status 2 LED
   pinMode(A7, OUTPUT);   //Error LED
 
-  //digitalWrite(2, HIGH); //button power (un-float)
+//digitalWrite(2, HIGH); //button power (un-float)
   analogWrite(BUTTONLED, ledLuxLevel); //turn on LED initially
   digitalWrite(PWSAVE, HIGH); //power-save mode (HIGH=off, LOW=on)
   digitalWrite(ONETHREE, HIGH); //activate builtin LED
@@ -242,9 +241,9 @@ void setup()
     {
       LCDsetPosition(4, curDot+8); myLCD.print(".");
       curDot++;
-      delay(300);
+      delay(100);
     }
-    delay(300);
+    delay(100);
   }
 
 
@@ -313,7 +312,7 @@ void loop() {
     if(debug_loop) Serial.println("ModeSetTo0");
   }
 
-  if (initSet == 0 && mode != 3) { 
+  if (initSet == 0 && mode != 3 && prevMode == 3) { 
     laser_pwr = 0; 
     digitalWrite(LASEREN, HIGH); 
     digitalWrite(STAT2, LOW); 
@@ -327,16 +326,9 @@ void loop() {
   //GLOBAL TIME
   if (timeOn) {
     time_t t = processSyncMessage();
-    if (t != 0) { 
-      RTC.set(t); 
-      setTime(t); 
-    } // set the RTC and the system time to the received value
+    if (t != 0) { RTC.set(t); setTime(t); } // set the RTC and the system time to the received value
     //if(debug_loop) { Serial.print(curTimeMDY); Serial.print(" "); Serial.println(curTimeHMS); }
-    if(debug_loop) { 
-      Serial.print(genCurTimeMDY()); 
-      Serial.print(" "); 
-      Serial.println(genCurTimeHMS()); 
-    }
+    if(debug_loop) { Serial.print(genCurTimeMDY()); Serial.print(" "); Serial.println(genCurTimeHMS()); }
     //xbee.print(genCurTimeMDY()); xbee.print(" "); xbee.println(genCurTimeHMS()); 
     xbee.println(genCurTimeMDY()+ " " + genCurTimeHMS()); 
   }
@@ -348,43 +340,21 @@ void loop() {
   LCDsetPosition(1,15); 
   if (battLevel < 100 && battLevel >= 10)
   {
-    myLCD.print("B"); 
-    xbee.print("B");//batt logo;
-    myLCD.print(battLevel,1); 
-    xbee.print(battLevel,1); //[,1]=.1 (include decimal)
-    LCDsetPosition(1,20); 
-    myLCD.print("%"); 
-    xbee.println("%");
+    myLCD.print("B"); xbee.print("B");//batt logo;
+    myLCD.print(battLevel,1); xbee.print(battLevel,1); //[,1]=.1 (include decimal)
+    LCDsetPosition(1,20); myLCD.print("%"); xbee.println("%");
   }
   else if (battLevel < 10 && battLevel > -0.01)
   {
     myLCD.print("B0"); //batt logo;
-    myLCD.print(battLevel,1); 
-    xbee.print(battLevel,1); //16+1 for B"zero" //[,1]=.1 (include decimal)
-    LCDsetPosition(1,20); 
-    myLCD.print("%"); 
-    xbee.println("%");
+    myLCD.print(battLevel,1); xbee.print(battLevel,1); //16+1 for B"zero" //[,1]=.1 (include decimal)
+    LCDsetPosition(1,20); myLCD.print("%"); xbee.println("%");
   }
   else if (battLevel >= 100 && 
-    battLevel < 255)    { 
-    myLCD.print("B FULL"); 
-    xbee.println("Battery Full"); 
-  } //batt logo;
-  else if (battLevel >= 255)   { 
-    myLCD.print("PW_ERR"); 
-    xbee.println(F("Power Error")); 
-    digitalWrite(ERRORLED, HIGH); 
-  }
-  else if (battLevel <= -0.01) { 
-    myLCD.print("PWE_LW"); 
-    xbee.println(F("Battery Low Error")); 
-    digitalWrite(ERRORLED, HIGH); 
-  }
-  else                         { 
-    myLCD.print("B_SNSR"); 
-    xbee.println(F("Battery Sensor Error")); 
-    digitalWrite(ERRORLED, HIGH); 
-  }
+           battLevel < 255)    { myLCD.print("B FULL"); xbee.println("Battery Full"); } //batt logo;
+  else if (battLevel >= 255)   { myLCD.print("PW_ERR"); xbee.println(F("Power Error")); digitalWrite(ERRORLED, HIGH); }
+  else if (battLevel <= -0.01) { myLCD.print("PWE_LW"); xbee.println(F("Battery Low Error")); digitalWrite(ERRORLED, HIGH); }
+  else                         { myLCD.print("B_SNSR"); xbee.println(F("Battery Sensor Error")); digitalWrite(ERRORLED, HIGH); }
 
 
   switch(mode)
@@ -429,10 +399,8 @@ void mode0() //off-recharge
       } //else set to current mode
       LCDclearScreen();
       //delay(100);
-      LCDsetPosition(1,1);
-      myLCD.print("OFF/CHG");
-      if(debug_mode0) Serial.println("OFF/CHG");
-      xbee.println("Off / Charge Mode");
+      LCDsetPosition(1,1); myLCD.print("OFF/CHG");
+      if(debug_mode0) Serial.println("OFF/CHG"); xbee.println("Off / Charge Mode");
       //animStep = initAnimStep;
 
 
@@ -463,9 +431,7 @@ void mode0() //off-recharge
      if(debug_mode0) Serial.println("Battery Error");
      }*/
     float battLevel = fuelGauge.stateOfCharge();
-    if (battLevel >= 254 || battLevel < 0) { 
-      statusLight(1,0,1); 
-    }
+    if (battLevel >= 254 || battLevel < 0) statusLight(1,0,1);
 
     //display time
     if(timeOn) {
@@ -482,8 +448,7 @@ void mode0() //off-recharge
     myLCD.print("F");
 
     //Uptime reporting
-    LCDsetPosition(4, 1); 
-    myLCD.print("Up: ");
+    LCDsetPosition(4, 1); myLCD.print("Up: ");
     if(millis()/1000 >= 60) { myLCD.print((millis()/1000)/60,1); myLCD.print("m"); } //mins
     myLCD.print(((millis()/1000) % 60),1); myLCD.print("s"); //secs
   }
@@ -820,43 +785,71 @@ void interrupt0()
     if(mode != -1) { buzz(BUZZER,500,200); } //buzz on pin 9 at 500hz for 200ms
     Serial.println("InsideInterrupt");
     digitalWrite(MCUONLED, LOW); 
-    statusLight(0,0,1);
+    statusLight(0,0,1); //(s1)(s2)[err]
     //digitalWrite(BUTTONLED, LOW);
     analogWrite(BUTTONLED, ledLuxLevel);
 
+
+
+
+  /* //option 1 (case + if)
+  switch(warningShown)
+  {
+    case -1: mode = 4; if(debug_int0)Serial.println("switchToWarn"); break; //send to warning screen when loop() will call mode4();
+    case 0: mode = 4; if(debug_int0)Serial.println("switchToWarn"); break; //send to warning screen when loop() will call mode4();
+    case 1: mode = 1; warningShown = 2; prevMode = 0; initSet = 0; if(debug_int0)Serial.println("switchWarnShown1"); break; //prevmode = 4; ##prevMode would be 0, since "mode 4" isn't really a mode 
+    case 2:
+      if(mode == 1)      { mode = 2; if(debug_int0)Serial.println("switchto2"); }
+      else if(mode == 0) { mode = 1; if(debug_int0)Serial.println("switchto1"); }
+      else if(mode == 2) { mode = 3; if(debug_int0)Serial.println("switchto3");  }
+      else if(mode == 3) { mode = 0; if(debug_int0)Serial.println("switchto0");  }
+      else               { mode = 0; if(debug_int0)Serial.println("switchfrom_elseto0"); } 
+      break;
+  }*/
+  
+  //option 2 (onlycase)
+  switch(warningShown)
+  {
+    case -1: mode = 4; if(debug_int0)Serial.println("switchToWarn"); break; //send to warning screen when loop() will call mode4();
+    case 0: mode = 4; if(debug_int0)Serial.println("switchToWarn"); break; //send to warning screen when loop() will call mode4();
+    case 1: mode = 1; warningShown = 2; prevMode = 0; initSet = 0; if(debug_int0)Serial.println("switchWarnShown1"); break; //prevmode = 4; ##prevMode would be 0, since "mode 4" isn't really a mode 
+    case 2:
+      switch(mode)
+      {
+        case 1: { mode = 2; if(debug_int0)Serial.println("switchto2"); break;}
+        case 0: { mode = 1; if(debug_int0)Serial.println("switchto1"); break;}
+        case 2: { mode = 3; if(debug_int0)Serial.println("switchto3"); break;}
+        case 3: { mode = 0; if(debug_int0)Serial.println("switchto0"); break;}
+        default: mode = 0; if(debug_int0)Serial.println("switchfrom_elseto0");
+      }
+      break;
+      default: statusLight(0,0,1); if(debug_int0)Serial.println("true-ing out"); while(1);
+  }
+    
+    
+    /* //option 3 (only if) [original*]
     if (warningShown == 0 || warningShown == -1) //if just pressed for very first time
-    {
-      mode = 4; //send to warning screen when loop() will call mode4();
-      Serial.println("switchToWarn");
-    }
+    { mode = 4; if(debug_int0)Serial.println("switchToWarn"); } //send to warning screen when loop() will call mode4();
     else if (warningShown == 1) //if TOC just confirmed/accepted [from warning screen]
-    {
-      mode = 1;
-      warningShown = 2;
-      prevMode = 0;
-      initSet = 0;
-      //prevmode = 4; ##previous mode would be 0, since technically "mode 4" isn't really a mode
-      Serial.println("switchWarnShown1");
-    }
+    { mode = 1; warningShown = 2; prevMode = 0; initSet = 0; if(debug_int0)Serial.println("switchWarnShown1"); } //prevmode = 4; ##prevMode would be 0, since "mode 4" isn't really a mode
     else if(mode == 1 && warningShown == 2) { mode = 2; if(debug_int0)Serial.println("switchto2"); }
     else if(mode == 0 && warningShown == 2) { mode = 1; if(debug_int0)Serial.println("switchto1"); }
     else if(mode == 2 && warningShown == 2) { mode = 3; if(debug_int0)Serial.println("switchto3");  }
     else if(mode == 3 && warningShown == 2) { mode = 0; if(debug_int0)Serial.println("switchto0");  }
     else                                    { mode = 0; if(debug_int0)Serial.println("switchfrom_elseto0"); } 
-
+    */
+    
     initSet = 0;
     //digitalWrite(BUTTONLED, HIGH);
     //Serial.print("Interrupt Set Mode: "); //  Serial.println(mode);
-    analogWrite(BUTTONLED, ledLuxLevel);
-    digitalWrite(MCUONLED, HIGH);  
-    digitalWrite(ERRORLED, LOW);
+    analogWrite(BUTTONLED, ledLuxLevel); digitalWrite(MCUONLED, HIGH); digitalWrite(ERRORLED, LOW);
 
   }/*
   else //THIS CANNOT EXIST UNLESS ACTUALLY PLUGGED INTO USB, CAUSES BUGS OTHERWISE
    {
-   Serial.println("buttonPressRegistered");
+   if(debug_int0)Serial.println("buttonPressRegistered");
    }
-   Serial.println(last_interrupt_time);*/
+   if(debug_int0)Serial.println(last_interrupt_time);*/
   last_interrupt_time = millis();
 }
 
@@ -871,17 +864,13 @@ void interrupt1() {
   if (millis() - last_interrupt_time > 200) 
   {
     noInterrupts();
-    if(mode != -1) { 
-      buzz(BUZZER,500,200); 
-    } //buzz on pin 9 at 500hz for 200ms
+    if(mode != -1) { buzz(BUZZER,500,200); } //buzz on pin 9 at 500hz for 200ms
 
-    digitalWrite(MCUONLED, HIGH); 
-    digitalWrite(STAT1, HIGH); 
-    digitalWrite(ERRORLED, HIGH);
+    digitalWrite(STAT1, HIGH); digitalWrite(ERRORLED, HIGH); digitalWrite(MCUONLED, HIGH); 
+    //statusLightIntOne(1,1,1);
     analogWrite(XBEELED, ledLuxLevel); //XBee Button LED
-    //digitalWrite(BUTTONLED, LOW);
     analogWrite(BUTTONLED, ledLuxLevel);
-
+    //digitalWrite(BUTTONLED, LOW);
 
     if (mode == 3) {
       switch(laser_pwr)
@@ -925,9 +914,8 @@ void interrupt1() {
       
     }
     //analogWrite(BUTTONLED, ledLuxLevel);
-    digitalWrite(MCUONLED, LOW); 
-    digitalWrite(STAT1, LOW); 
-    digitalWrite(ERRORLED, LOW);
+    digitalWrite(STAT1, LOW); digitalWrite(ERRORLED, LOW); digitalWrite(MCUONLED, LOW); 
+    //statusLightIntOne(0,0,0);
   }
   last_interrupt_time = millis();
 }
@@ -1040,18 +1028,16 @@ extern void *__brkval;
 unsigned long processSyncMessage() {
   unsigned long pctime = 0L;
   const unsigned long DEFAULT_TIME = 1357041600; //Jan 1 2013 
-  if(Serial.find(TIME_HEADER)) {
-    pctime = Serial.parseInt();
-    return pctime;
+  if(Serial.find(TIME_HEADER))
+  {
+    pctime = Serial.parseInt(); return pctime;
     if( pctime < DEFAULT_TIME) { pctime = 0L; } //check the value is a valid time (greater than Jan 1 2013)
   }                                             //return 0 to indicate that the time is not valid
   return pctime;
 }
 
 
-void printTSLError(byte error)
-  // If there's an I2C error, this function will
-  // print out an explanation.
+void printTSLError(byte error) // If there's an TSL I2C error, this function will print out an explanation.
 {
   if(debug_mode3) { 
     xbee.print("I2C error: "); xbee.print(error,DEC); xbee.print(", ");

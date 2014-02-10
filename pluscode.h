@@ -6,12 +6,14 @@
 #ifdef PCBVERSION1.0
 
 #define STAT1 A2
+#define MCUONLED A3
 #define STAT2 A6
 #define ERRORLED A7
 
 #elif defined PCBVERION2.0
 
 #define STAT1 A2
+#define MCUONLED A3
 #define STAT2 A6
 #define ERRORLED A7
 
@@ -20,8 +22,21 @@
 //void statusLight(boolean s1, boolean s2, boolean err);
 void statusLight(boolean s1, boolean s2, boolean err) {
   digitalWrite(STAT1, s1);
-  digitalWrite(STAT2, s1);
-  digitalWrite(ERRORLED, s1);
+  digitalWrite(STAT2, s2);
+  digitalWrite(ERRORLED, err);
+}
+
+void statusLightIntOne(boolean s1, boolean err, boolean mcu) {
+  digitalWrite(STAT1, s1);
+  digitalWrite(ERRORLED, err);
+  digitalWrite(MCUONLED, mcu);
+}
+
+void statusLight(boolean s1, boolean s2, boolean err, boolean mcu) {
+  digitalWrite(STAT1, s1);
+  digitalWrite(STAT2, s2);
+  digitalWrite(ERRORLED, err);
+  digitalWrite(MCUONLED, mcu);
 }
 
 void setStatusLight(boolean s1enable, boolean s1, boolean s2enable, boolean s2, boolean errenable, boolean err) {
