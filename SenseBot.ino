@@ -114,7 +114,7 @@ volatile boolean initSet = 0; //initial settings for each mode bit
 volatile signed int warningShown = -1;
 
 volatile signed int laser_pwr = 0;
-volatile boolean xbeeSleep = 0;
+volatile boolean xbeeSleep = 1; //start XBee Sleeping
 boolean xbeeButtonLED = LOW;
 const int ledLuxLevel = 200; //mode/XBee button led brightness
 
@@ -296,8 +296,7 @@ void setup()
 
   xbee.println(F("XBee Sleep..."));
   if(debug_setup) Serial.println(F("XBee Sleep..."));
-  digitalWrite(XBEESLEEPD, HIGH); //start XBee sleep
-  xbeeSleep = 1;
+  digitalWrite(XBEESLEEPD, xbeeSleep); //start XBee sleep
   xbeeButtonLED = HIGH;
   analogWrite(XBEELED, ledLuxLevel); //turn on XBee Button LED
   xbee.println(F("done. If you're reading this, you're not on wireless (or something broke)."));
@@ -994,66 +993,31 @@ void interrupt1() {
 
 
     if (mode == 3) {
-      if (laser_pwr == 0)
-      {
-        digitalWrite(LASEREN, LOW); 
-        digitalWrite(STAT2, HIGH); //enable laser
-        laser_pwr = 255;
-
-      }
-      else if (laser_pwr == 255)
-      {
-        analogWrite(LASEREN, 127); 
-        digitalWrite(STAT2, HIGH); 
-        laser_pwr = 127;
-      }
-      else if (laser_pwr == 127)
-      {
-        analogWrite(LASEREN, 77); 
-        digitalWrite(STAT2, HIGH); 
-        laser_pwr = 77;
-      }
-      else if (laser_pwr == 77)
-      {
-        analogWrite(LASEREN, 40); 
-        digitalWrite(STAT2, HIGH); 
-        laser_pwr = 40;
-      }
-      else if (laser_pwr == 40)
-      {
-        digitalWrite(LASEREN, LOW); 
-        digitalWrite(STAT2, HIGH); //enable laser
-        laser_pwr = 4;
-      }
-      else if (laser_pwr == 4 || laser_pwr == 3) //4 means strobe on, 3 strobe off, for this
-      {
-        digitalWrite(LASEREN, HIGH); 
-        digitalWrite(STAT2, LOW); //disable laser
-        laser_pwr = 0;
-      }
+      if (laser_pwr == 0)        { digitalWrite(LASEREN, LOW); laser_pwr = 255; } //enable laser
+      else if (laser_pwr == 255) { analogWrite(LASEREN, 127); laser_pwr = 127; }
+      else if (laser_pwr == 127) { analogWrite(LASEREN, 77); laser_pwr = 77; }
+      else if (laser_pwr == 77)  { analogWrite(LASEREN, 40); laser_pwr = 40; }
+      else if (laser_pwr == 40)  { digitalWrite(LASEREN, LOW); laser_pwr = 4; } //enable laser
+      else if (laser_pwr == 4 || //4 means strobe on, 3 strobe off, for this
+               laser_pwr == 3)   { digitalWrite(LASEREN, HIGH); digitalWrite(STAT2, LOW); laser_pwr = 0; } //disable laser
       else
       {
-        digitalWrite(LASEREN, HIGH); 
-        digitalWrite(STAT2, LOW); //disable laser
-        laser_pwr = 0;
+        digitalWrite(LASEREN, HIGH); digitalWrite(STAT2, LOW); laser_pwr = 0; //disable laser
         xbee.println(F("Laser Var Error"));
       }
+      if (laser_pwr > 0 && laser_pwr < 10) digitalWrite(STAT2, HIGH); //effectively, if laser is on (but we don't deal with strobing here) 
     }
 
-
-
-    else {
+    else { //mode != 3
       /////#####Insert XBee Sleep stuff here
       //maybe something about triggering and switching LED status
-      if (xbeeSleep) { 
-        digitalWrite(XBEESLEEPD, HIGH); 
-      }//start XBee sleep
-      else           { 
-        digitalWrite(XBEESLEEPD, LOW); 
-      } //stop XBee sleep
+      /*if (xbeeSleep) { digitalWrite(XBEESLEEPD, LOW); }  //stop XBee sleep
+      else           { digitalWrite(XBEESLEEPD, HIGH); } //start XBee sleep
+      xbeeSleep = !xbeeSleep;*/
       xbeeSleep = !xbeeSleep;
+      digitalWrite(XBEESLEEPD, xbeeSleep); //toggle XBee Sleep
+      
     }
-
     //analogWrite(BUTTONLED, ledLuxLevel);
     digitalWrite(MCUONLED, LOW); 
     digitalWrite(STAT1, LOW); 
