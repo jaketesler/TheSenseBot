@@ -4,7 +4,8 @@ SparkFun Electronics
 Joel Bartlett
 December 20, 2012 
 
-Modified by Jake Tesler for the COM-BAT System Project
+Modified by Jake Tesler for the COM-BAT System Project, 2012-2013
+Modified by Jake Tesler for the SenseBot Project, 2014-
 
 This code uses the information presented in the SerLCD Datasheet 
 to create an Arduino example using the SerLCD from SparkFun Electonics. 
@@ -17,22 +18,10 @@ This code was devoloped for the Arduino IDE v102
 To use, connect the following pins
 VDD -> 5V
 GND -> GND
-LCD RX -> Arduino TX (pin 1)
+LCD RX -> Arduino TX (pin 4)
 
 ***Don't forgect to disconnect the LCD's RX pin from the TX pin of 
 the Arduino's UART line while programming!***
-
-You can also check out the SerLCD library from Arduino 
-http://playground.arduino.cc/Code/SerLCD
-
-*If you need to reprogram often, or need the UART for another device,
-you can use the Software Serial libary to create a 
-seperate UART for the LCD.
-Arduino IDE -> Skecth -> Import Library ->Software Serial
-
-To declare a new UART using SoftwareSerial, insert this line:
-SoftwareSerial NAME(x,y); // RX, TX
-where Name is the name of the new UART, x is the RX pin, and y is the TX pin.
 
 "THE BEER-WARE LICENSE"
 As long as you retain this notice you can do whatever you want with this stuff. 
@@ -47,44 +36,27 @@ SendOnlySoftwareSerial myLCD(4); //5 RX, 4 TX* ##CUSTOM
 //-------------------------------------------------------------------------------------------
 void LCDclearScreen()
 {
-  //clears the screen, you will use this a lot!
   myLCD.write(0xFE);
   myLCD.write(0x01); 
 }
 //-------------------------------------------------------------------------------------------
-void LCDclearDisplay()
+/*void LCDclearDisplay()
 {
   //clears the screen, you will use this a lot!
   myLCD.write(0xFE);
   myLCD.write(0x01); 
-}
-//-------------------------------------------------------------------------------------------
-void LCDselectLineOne()
-{ 
-  //puts the cursor at line 0 char 0.
-  myLCD.write(0xFE); //command flag
-  myLCD.write(128); //position
-}
+}*/
 //-------------------------------------------------------------------------------------------
 //NEW CUSTOM PROGRAM/UTILITY
 void LCDsetPosition(int line, int pos) //set position at line, position (1-4,1-20);
 { 
- 
-    
-  /*while (pos > 20) //if pos is greater than 20 (max), subtract 1 lines worth of chars and carriage return
+/*while (pos > 20) //if pos is greater than 20 (max), subtract 1 lines worth of chars and carriage return
   {
-    pos -= 20;
-    line++;
-    if (line > 4) //if line > 4 (max), reset lines to 0;
-    {
-      line = 1;
-    }
-  }
-  */
-  if (pos > 0 && pos <= 20) {pos--;}   //if pos is greater than min (1) change to index
-                                       //1 --> 0, 5 --> 4, etc. (human --> index)
+    pos -= 20; line++;
+    if (line > 4) { line = 1; } //if line > 4 (max), reset lines to 0;
+  }*/
+  if (pos > 0 && pos <= 20) {pos--;}   //if pos > than min (1) change to index, 1 --> 0, etc. (human --> index)
   else {pos=0;} //else reset to 0
-  
   
   //modify based on lines
   if (line > 4 || line < 1) {line=1;} //if lines outside max reset to 0
@@ -96,20 +68,6 @@ void LCDsetPosition(int line, int pos) //set position at line, position (1-4,1-2
   pos += 128;
   myLCD.write(0xFE); //command flag
   myLCD.write(pos); //write position
-  
-}
-//-------------------------------------------------------------------------------------------
-//NEW CUSTOM PROGRAM/UTILITY
-void LCDclearScreenFull()
-{
-  LCDsetPosition(1,1);
-  myLCD.print("                    ");
-  LCDsetPosition(2,1);
-  myLCD.print("                    ");
-  LCDsetPosition(3,1);
-  myLCD.print("                    ");
-  LCDsetPosition(4,1);
-  myLCD.print("                    ");
 }
 //-------------------------------------------------------------------------------------------
 void LCDturnDisplayOn()
@@ -119,7 +77,31 @@ void LCDturnDisplayOn()
   myLCD.write(12); // 0x0C
 }
 //-------------------------------------------------------------------------------------------
-/*void LCDselectLineTwo()
+void LCDbrightness(int brightness)// 0 = OFF, 255 = Fully ON, everything inbetween = varied brightnbess 
+{
+  int bright=map(brightness, 0, 255, 128, 157);
+  //this function takes an int between 0-255 and turns the backlight on accordingly
+  myLCD.write(0x7C); //NOTE THE DIFFERENT COMMAND FLAG = 124 dec
+  myLCD.write(bright);
+}
+//-------------------------------------------------------------------------------------------
+//NEW CUSTOM PROGRAM/UTILITY (that we no longer use)
+/*void LCDclearScreenFull()
+{
+  LCDsetPosition(1,1); myLCD.print("                    ");
+  LCDsetPosition(2,1); myLCD.print("                    ");
+  LCDsetPosition(3,1); myLCD.print("                    ");
+  LCDsetPosition(4,1); myLCD.print("                    ");
+}
+//-------------------------------------------------------------------------------------------
+void LCDselectLineOne()
+{ 
+  //puts the cursor at line 0 char 0.
+  myLCD.write(0xFE); //command flag
+  myLCD.write(128); //position
+}
+//-------------------------------------------------------------------------------------------
+void LCDselectLineTwo()
 { 
   //puts the cursor at line 0 char 0.
   myLCD.write(0xFE); //command flag
@@ -201,14 +183,6 @@ void LCDbacklight(int brightness)// 128 = OFF, 157 = Fully ON, everything inbetw
   //this function takes an int between 128-157 and turns the backlight on accordingly
   myLCD.write(0x7C); //NOTE THE DIFFERENT COMMAND FLAG = 124 dec
   myLCD.write(brightness); // any value between 128 and 157 or 0x80 and 0x9D
-}
-//-------------------------------------------------------------------------------------------
-void LCDbrightness(int brightness)// 0 = OFF, 255 = Fully ON, everything inbetween = varied brightnbess 
-{
-  int bright=map(brightness, 0, 255, 128, 157);
-  //this function takes an int between 0-255 and turns the backlight on accordingly
-  myLCD.write(0x7C); //NOTE THE DIFFERENT COMMAND FLAG = 124 dec
-  myLCD.write(bright);
 }
 //-------------------------------------------------------------------------------------------
 void LCDscrollingMarquee()
