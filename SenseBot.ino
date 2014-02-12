@@ -48,6 +48,8 @@
 #include <HIH4030.h>
 #include <Time.h> //custom-adapted library
 #include <DS1307RTC.h>
+#include <EEPROM.h>
+#include "eeprom_set.h"
 
 
 #define PCBVERSION1.0
@@ -143,9 +145,14 @@ unsigned int msInt;  // Integration ("shutter") time in milliseconds
 
 //Options
 const unsigned int globalDelay = 250; //global event delay in ms (milliseconds) {suggested values: 250, 500}
-const boolean powerSaveEnabled = false; //enable or disable power-save functions for the regulator ###experimental
+  #define globalDelayEEP 1
 const uint8_t ledLuxLevel = 200; //mode/XBee button LED brightness  (x out of 255)
+  #define ledLuxLevelEEP 2
 const uint8_t switchCount = 15; //the number of intervals that elapse before the light sensor switches reverts sensitivity
+  #define switchCountEEP 3
+const boolean powerSaveEnabled = false; //enable or disable power-save functions for the regulator ###experimental
+  #define powerSaveEnabledEEP 4
+const boolean eeprom_config = false; //configure EEPROM settings?
 
 //initialize
 MAX1704 fuelGauge;  //I2C - initialize fuel gauge
@@ -159,7 +166,7 @@ SoftwareSerial xbee(7,6); //7 iRX, 6 iTX* //initialize XBee
 //SoftwareSerial myLCD(5,4); //5 RX, 4 TX //redefined in lcdCommands.h ##not used
 
 void setup()
-{
+{ 
   pinMode(2, INPUT_PULLUP); //for interrupt 0 (this is the mode button)
   pinMode(3, INPUT_PULLUP); //for interrupt 1 (this is the XBee interrupt) #PWM
 //pinMode(4, OUTPUT);    //LCD RX/TX is on pin 4 **SendOnlySoftwareSerial
@@ -182,7 +189,7 @@ void setup()
   pinMode(A7, OUTPUT);   //Error LED
 
   analogWrite(BUTTONLED, ledLuxLevel); //turn on LED initially
-  digitalWrite(PWSAVE, HIGH);          //power-save mode (HIGH=off, LOW=on)
+  digitalWrite(PWSAVE, !powerSaveEnabled);          //power-save mode (HIGH=off, LOW=on)
   digitalWrite(ONETHREE, HIGH);        //activate builtin LED
   digitalWrite(MCUONLED, LOW);         //we will activate 'MCU On' LED after the init setup
   digitalWrite(RELAY, HIGH);           //start SDA/SCL batt monitor relay, leave on permanently
@@ -193,6 +200,9 @@ void setup()
 
   if(debug_setup) Serial.begin(9600);
   if(debug_setup) Serial.println("boot");
+  if(debug_setup) printGlobals();
+  
+  if(eeprom_config) {eeprom_set(); while(1);}
   
   myLCD.begin(9600);                                      //initialize LCD at 9600 baud
   xbee.begin(115200); xbee.println("boot");               //initialize XBee at 115200 baud
@@ -343,13 +353,13 @@ void loop() {
   
   if (battLevel < 100 && battLevel > -0.01) //if normal
   {
-    myLCD.print("B"); xbee.print("B");//batt logo; 
-    if(battLevel < 10) myLCD.print("0");//prefix zero for battLevel double digits; 
+    myLCD.print("B"); xbee.print("B"); //batt logo;
+    if(battLevel < 10) myLCD.print("0"); //prefix zero for battLevel double digits
     myLCD.print(battLevel,1); xbee.print(battLevel,1); //[,1]=.1 (include decimal)
     /*LCDsetPosition(1,20);*/ myLCD.print("%"); xbee.println("%");
   }
   else if (battLevel >= 100 && 
-           battLevel < 255)    { myLCD.print("B FULL"); xbee.println("Battery Full"); } //batt logo;
+           battLevel < 255)    { myLCD.print("B FULL"); xbee.println("Battery Full"); }
   else if (battLevel >= 255)   { myLCD.print("PW_ERR"); xbee.println(F("Power Error")); digitalWrite(ERRORLED, HIGH); }
   else if (battLevel <= -0.01) { myLCD.print("PWE_LW"); xbee.println(F("Battery Low Error")); digitalWrite(ERRORLED, HIGH); }
   else                         { myLCD.print("B_SNSR"); xbee.println(F("Battery Sensor Error")); digitalWrite(ERRORLED, HIGH); }
@@ -372,6 +382,7 @@ void loop() {
   */
  
   delay(globalDelay); //delay until next global event  
+  //delay(EEPROM.read(globalDelayEEP));
 } //END void loop()
 
 
@@ -401,6 +412,7 @@ void mode0() //off-recharge
       delay(250);
       interrupts();
       analogWrite(BUTTONLED, ledLuxLevel);
+      //analogWrite(BUTTONLED, EEPROM.read(ledLuxLevelEEP));
       //interrupts();
 
       if((millis()/1000) > 15) buzz(BUZZER,400,200); //buzz on pin 9 at 400hz for 200ms 
@@ -429,8 +441,7 @@ void mode0() //off-recharge
     if(timeOn) {
       String curTimeHMS = genCurTimeHMS();
       String curTimeMDY = genCurTimeMDY();
-      LCDsetPosition(2,1); 
-      myLCD.print(curTimeMDY + " " + curTimeHMS);
+      LCDsetPosition(2,1); myLCD.print(curTimeMDY + " " + curTimeHMS);
     }
 
     //3rd line Light
@@ -453,10 +464,7 @@ void mode0() //off-recharge
     if(millis()/1000 >= 60) { myLCD.print((millis()/1000)/60,1); myLCD.print("m"); } //mins
     myLCD.print(((millis()/1000) % 60),1); myLCD.print("s"); //secs
   }
-  /*else
-   {
-   interrupt0(); //crash protection of some sort?
-   }*/
+  //else interrupt0(); //crash protection of some sort?
 }
 
 
@@ -481,25 +489,18 @@ void mode1() //Accelerometer/Compass
       prevMode = 1; 
       LCDsetPosition(1,1); myLCD.print("Where Am I?"); if(debug_mode1)Serial.println("Where Am I?");
       LCDsetPosition(2,1); myLCD.print("Heading:");
-    /*LCDsetPosition(3,1);
-      myLCD.print("A X: ");
-      LCDsetPosition(3,8);
-      myLCD.print("Y: ");
-      LCDsetPosition(3,15);
-      myLCD.print("Z: ");
-      myLCD.print(lsm.a.z);
-      LCDsetPosition(4,1);
-      myLCD.print("M X: ");
-      LCDsetPosition(4,8);
-      myLCD.print("Y: ");
-      LCDsetPosition(4,15);
-      myLCD.print("Z: ");
-      myLCD.print(lsm.m.z);*/
+    /*LCDsetPosition(3,1);  myLCD.print("A X: ");
+      LCDsetPosition(3,8);  myLCD.print("Y: ");
+      LCDsetPosition(3,15); myLCD.print("Z: ");
+      LCDsetPosition(4,1);  myLCD.print("M X: ");
+      LCDsetPosition(4,8);  myLCD.print("Y: ");
+      LCDsetPosition(4,15); myLCD.print("Z: ");*/
     } 
     analogWrite(BUTTONLED, 0);
     //delay(50);
     interrupts();
     analogWrite(BUTTONLED, ledLuxLevel);
+    //analogWrite(BUTTONLED, EEPROM.read(ledLuxLevelEEP));
     buzz(BUZZER,400,200);  //buzz on pin 9 at 400hz for 200ms
   }
 
@@ -510,28 +511,22 @@ void mode1() //Accelerometer/Compass
   if(debug_mode1) { Serial.print("Heading: "); Serial.println(curHeading); }
 
   lsm.read();
+  
 /*LCDsetPosition(3,5);  myLCD.print(lsm.a.x);
   LCDsetPosition(3,11); myLCD.print(lsm.a.y);
   LCDsetPosition(3,18); myLCD.print(lsm.a.z);
   LCDsetPosition(4,5);  myLCD.print(lsm.m.x);
   LCDsetPosition(4,11); myLCD.print(lsm.m.y);
   LCDsetPosition(4,18); myLCD.print(lsm.m.z);*/
-
   
   LCDsetPosition(3,1);
-  myLCD.print("A X: ");
-  myLCD.print(lsm.a.x);
-  myLCD.print("Y: ");
-  myLCD.print(lsm.a.y);
-  myLCD.print("Z: ");
-  myLCD.print(lsm.a.z);
-  LCDsetPosition(4,1);
-  myLCD.print("M X: ");
-  myLCD.print(lsm.m.x);
-  myLCD.print("Y: ");
-  myLCD.print(lsm.m.y);
-  myLCD.print("Z: ");
-  myLCD.print(lsm.m.z);
+  myLCD.print("A X: "); myLCD.print(lsm.a.x);
+  myLCD.print("Y: ");   myLCD.print(lsm.a.y);
+  myLCD.print("Z: ");   myLCD.print(lsm.a.z);
+  LCDsetPosition(4,1);  
+  myLCD.print("M X: "); myLCD.print(lsm.m.x);
+  myLCD.print("Y: ");   myLCD.print(lsm.m.y);
+  myLCD.print("Z: ");   myLCD.print(lsm.m.z);
 }
 
 void mode2() //Altitude
@@ -583,10 +578,8 @@ void mode2() //Altitude
   }
   else { myLCD.print("Temp Error"); }
 
-  if(debug_mode2) {
-    Serial.print(curTemp); Serial.println("F | ");
-    Serial.print(curHumidRHT); Serial.println("% RH");
-  }
+  if(debug_mode2) { Serial.print(curTemp); Serial.println("F | ");
+                    Serial.print(curHumidRHT); Serial.println("% RH"); }
 
   LCDsetPosition(3,11);
   altbar.setModeBarometer();
@@ -633,10 +626,10 @@ void mode3() //
     //LCDclearScreen(); delay(50);
 
 
-    LCDsetPosition(1,1); myLCD.print("Light Sensors");
+    LCDsetPosition(1,1); myLCD.print(F("Light Sensors"));
     LCDsetPosition(2,1); myLCD.print("Lux: ");
     //LCDsetPosition(3,1);
-    LCDsetPosition(4,1); myLCD.print("Laser: Push R Button");
+    LCDsetPosition(4,1); myLCD.print(F("Laser: Push R Button"));
 
     //interrupts();
     //delay(100);
@@ -677,9 +670,10 @@ void mode3() //
   }
   else { statusLight(1,0,1); printTSLError(tsl.getError()); }
 
-  //ledLuxLevelFromSensor = map(currentLuxLevel, lightSensor.min_value, lightSensor.max_value, 0, 255);
-  //int ledLuxLevelFromSensor = map(currentLuxLevel, lightSensor.min_value, lightSensor.max_value, 50, 255);
-  /*if (currentLuxLevel < 20) */ analogWrite(BUTTONLED, map(currentLuxLevel, 0, 400, 50, 255)); //set the brightness of the LED to ~room brightness
+
+  //###recheck with hardware to find optimal "brightness zone"
+  //shift 0-400lux to 50-255brightness
+  /*if (currentLuxLevel < 400) */ analogWrite(BUTTONLED, map(currentLuxLevel, 0, 400, 50, 255)); //set the brightness of the LED to ~room brightness
   //else                      analogWrite(BUTTONLED, map(currentLuxLevel, 0, 2000, 50, 255)); //set the brightness of the LED to ~room brightness
   
 
@@ -711,7 +705,10 @@ void mode4() //warning
     //initSet = 0;
     unsigned long previousWarnMillis = millis();
     //previousWarnMillis = millis();
-    boolean curWarnScreen = true; //T = 1; F = 2
+    
+    //boolean curWarnScreen = true; //T = 1; F = 2
+    static boolean curWarnScreen = true; //T = 1; F = 2
+    
     if(debug_mode4) Serial.println("WarnScreen1");
     interrupts();
     while(warningShown == 1)
@@ -854,6 +851,7 @@ void interrupt1() {
     //digitalWrite(BUTTONLED, LOW);
 
     if (mode == 3) {
+      //uint8_t setLaserPower; //for eeprom?
       switch(laser_pwr)
       {
         case 0:   digitalWrite(LASEREN, LOW); laser_pwr = 255; break; //enable laser, now at full brightness
@@ -997,6 +995,19 @@ void printTSLError(byte error) // If there's an TSL I2C error, this function wil
       default: xbee.println("unknown error");
     }
   }
+}
+
+
+void printGlobals() {
+  if(debug_setup) Serial.println("Global Variables:");
+  if(debug_setup) Serial.print("Global Delay: ");
+  if(debug_setup) Serial.println(globalDelay);
+  if(debug_setup) Serial.print("LED Lux Level: ");
+  if(debug_setup) Serial.println(ledLuxLevel);
+  if(debug_setup) Serial.print("Switch Count: ");
+  if(debug_setup) Serial.println(switchCount);
+  if(debug_setup) Serial.print("Power Save: ");
+  if(debug_setup) Serial.println(powerSaveEnabled);
 }
 
 /* SWITCH HOLD [DEBOUNCE?] CODE?????
