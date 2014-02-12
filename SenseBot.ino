@@ -38,7 +38,6 @@
 #include <SendOnlySoftwareSerial.h>
 #include "lcdCommands.h"
 #include "animation.h"
-#include "cycle.h"
 #include "pluscode.h"
 #include "debug.h"
 #include "MAX1704.h"
