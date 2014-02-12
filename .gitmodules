@@ -4,12 +4,6 @@
 [submodule "lsm303-arduino"]
 	path = lsm303-arduino
 	url = https://github.com/pololu/lsm303-arduino.git
-[submodule "Adafruit_Sensor"]
-	path = Adafruit_Sensor
-	url = https://github.com/adafruit/Adafruit_Sensor.git
-[submodule "Adafruit_TSL2561"]
-	path = Adafruit_TSL2561
-	url = https://github.com/adafruit/Adafruit_TSL2561.git
 [submodule "MAX1704"]
 	path = MAX1704
 	url = https://github.com/MattNewberry/MAX1704.git
@@ -22,9 +16,3 @@
 [submodule "libraries/MAX1704"]
 	path = libraries/MAX1704
 	url = https://github.com/MattNewberry/MAX1704.git
-[submodule "libraries/Adafruit_TSL2561"]
-	path = libraries/Adafruit_TSL2561
-	url = https://github.com/adafruit/Adafruit_TSL2561.git
-[submodule "libraries/Adafruit_Sensor"]
-	path = libraries/Adafruit_Sensor
-	url = https://github.com/adafruit/Adafruit_Sensor.git
