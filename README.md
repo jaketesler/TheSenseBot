@@ -5,7 +5,7 @@ TheSenseBot
 for the program to function properly.<br>
 For more info, [see here](http://arduino.cc/en/Guide/Libraries).**
 <br>Because the entire repo for each module isn't required, only certain folders must be copied.
-<br>They are as follows: ([folder] or [repo @ commit] /directory/to/move --> move\_to\_here)
+<br>They are as follows: (\[folder\] or \[repo @ commit\] /directory/to/move --> move\_to\_here)
 
 *	[arduino\_libraries @ commit] /Time --> libraries folder	
 *	[arduino\_libraries @ commit] /DS1307RTC --> libraries folder	
