@@ -36,10 +36,12 @@
 #include "Wire.h"
 #include <SoftwareSerial.h>
 #include <SendOnlySoftwareSerial.h>
+#include <EEPROM.h>
 #include "lcdCommands.h"
 #include "animation.h"
 #include "pluscode.h"
 #include "debug.h"
+#include "eeprom_set.h"
 #include "MAX1704.h"
 #include <LSM303.h>
 #include <SFE_TSL2561.h>
@@ -47,8 +49,6 @@
 #include <HIH4030.h>
 #include <Time.h> //custom-adapted library
 #include <DS1307RTC.h>
-#include <EEPROM.h>
-#include "eeprom_set.h"
 
 
 #define PCBVERSION1.0

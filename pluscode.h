@@ -4,14 +4,12 @@
 #define PCBVERSION1.0
 
 #ifdef PCBVERSION1.0
-
 #define STAT1 A2
 #define MCUONLED A3
 #define STAT2 A6
 #define ERRORLED A7
 
 #elif defined PCBVERION2.0
-
 #define STAT1 A2
 #define MCUONLED A3
 #define STAT2 A6
