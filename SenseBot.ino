@@ -30,11 +30,12 @@
  *   [STAT1] *STAT2* [ERROR] {3}: Interrupt 1 execution error
  *  
  * "THE BEER-WARE LICENSE"
-*  As long as you retain this notice you can do whatever you want with this stuff. 
-*  If we meet some day, and you think this stuff is worth it, you can buy me a beer.
+ * As long as you retain this notice you can do whatever you want with this stuff. 
+ * If we meet some day, and you think this stuff is worth it, you can buy me a beer.
  
  * *************************************************************************
  */
+const String sbVersion = "v0.4b1";
 
 #include "Arduino.h"
 #include "Wire.h"
@@ -191,14 +192,13 @@ void setup()
   pinMode(A6, OUTPUT);   //MCU Status 2 LED
   pinMode(A7, OUTPUT);   //Error LED
 
-  analogWrite(BUTTONLED, ledLuxLevel); //turn on LED initially
-  digitalWrite(PWSAVE, !powerSaveEnabled);          //power-save mode (HIGH=off, LOW=on)
-  digitalWrite(ONETHREE, HIGH);        //activate builtin LED
-  digitalWrite(MCUONLED, LOW);         //we will activate 'MCU On' LED after the init setup
-  digitalWrite(RELAY, HIGH);           //start SDA/SCL batt monitor relay, leave on permanently
-  digitalWrite(LASEREN, HIGH);         //disable laser
-  //digitalWrite(XBEELED, ledLuxLevel);  //XBee Button LED [inserted below]
-
+  analogWrite(BUTTONLED, ledLuxLevel);     //turn on LED initially
+  digitalWrite(PWSAVE, !powerSaveEnabled); //power-save mode (HIGH=off, LOW=on)
+  digitalWrite(ONETHREE, HIGH);            //activate builtin LED
+  digitalWrite(MCUONLED, LOW);             //we will activate 'MCU On' LED after the init setup
+  digitalWrite(RELAY, HIGH);               //start SDA/SCL batt monitor relay, leave on permanently
+  digitalWrite(LASEREN, HIGH);             //disable laser
+  //digitalWrite(XBEELED, ledLuxLevel);      //XBee Button LED [inserted below]
 
 
   if(debug_setup) Serial.begin(9600);
@@ -207,9 +207,9 @@ void setup()
   
   if(eeprom_config) {eeprom_set(); while(1);}
   
-  myLCD.begin(9600);                                      //initialize LCD at 9600 baud
-  xbee.begin(115200); xbee.println("boot");               //initialize XBee at 115200 baud
-  Wire.begin(); //delay(5);                               //initialize I2C
+  myLCD.begin(9600);                          //initialize LCD at 9600 baud
+  xbee.begin(115200); xbee.println("boot");   //initialize XBee at 115200 baud
+  Wire.begin(); //delay(5);                   //initialize I2C
   fuelGauge.reset(); fuelGauge.quickStart();                            if(debug_setup) Serial.println("fuel.done");         //initialize LiPo capacity sensor
   altbar.begin(); altbarStarter();                                      if(debug_setup) Serial.println("AltSnsr.done");      //initialize MPL3115A2
   lsm.init(); lsm.enableDefault();                                      if(debug_setup) Serial.println("ACM.done");          //initialize LSM303D
@@ -221,9 +221,7 @@ void setup()
 
  if(debug_setup && !tsl.begin()) { //There was a problem detecting the TSL2561 ... check the connections
     xbee.print(F("Ooops, no TSL2561 detected ... Check your wiring or I2C ADDR!"));
-    statusLight(1,0,1);
-    delay(10000);
-  }
+    statusLight(1,0,1); delay(10000); }
   
   xbee.println(F("XBee Sleep...")); if(debug_setup) Serial.println(F("XBee Sleep..."));
   digitalWrite(XBEESLEEPD, xbeeSleep); //start XBee sleep
@@ -239,8 +237,9 @@ void setup()
 
   //LCDbrightness(255); //increases binary size a lot
   LCDturnDisplayOn(); LCDclearScreen(); //clears LCD
-  LCDsetPosition(1,1); myLCD.print(F("Jim: SenseBot, A.I.")); xbee.println(F("Jim: SenseBot, A.I.")); //splash
+  LCDsetPosition(1,1); myLCD.print(F("  Jim The SenseBot"));  xbee.println(F("Jim The SenseBot")); //splash
   LCDsetPosition(2,1); myLCD.print(F("Built by Jake Tesler")); xbee.println(F("Built by Jake Tesler"));
+  LCDsetPosition(3,1); myLCD.print(sbVersion); myLCD.print(F(" | Jim: \"Hi!\""));
   LCDsetPosition(4,1); myLCD.print(F("Loading"));
   //for(int itime = 0; itime <= 1; itime++)
   for(uint8_t itime = 0; itime <= 1; itime++)
@@ -411,12 +410,9 @@ void mode0() //off-recharge
 
 
       //delay(50);
-      analogWrite(BUTTONLED, 0);
-      delay(250);
-      interrupts();
+      analogWrite(BUTTONLED, 0); delay(250); interrupts(); 
       analogWrite(BUTTONLED, ledLuxLevel);
       //analogWrite(BUTTONLED, EEPROM.read(ledLuxLevelEEP));
-      //interrupts();
 
       if((millis()/1000) > 15) buzz(BUZZER,400,200); //buzz on pin 9 at 400hz for 200ms 
       /*if alive for more than 10 sec, buzz for 200ms.*/
@@ -545,7 +541,7 @@ void mode2() //Altitude
     LCDclearScreen(); delay(50);
     //LCDsetPosition(4,1); myLCD.print("LOADING...");
 
-    analogWrite(BUTTONLED, 0);
+    digitalWrite(BUTTONLED, LOW);
     //delay(50);
     interrupts();
     analogWrite(BUTTONLED, ledLuxLevel);
@@ -565,15 +561,15 @@ void mode2() //Altitude
   }
 
 
-  float curTemp = altbar.readTempF();
+  float curTempF = altbar.readTempF();
   float curTempC = altbar.readTemp();
   float curHumidRHT = calHumid.getTrueRH(curTempC); //calculate true %RH based from Temperature
   //float curHumidRH = calHumid.getSensorRH(); //calculate relative %RH
 
-  if (curTemp > -200)
+  if (curTempF > -200)
   {
     LCDsetPosition(2,7);
-    myLCD.print(curTemp, 1); //prints the temperature to LCD with one decimal place
+    myLCD.print(curTempF, 1); //prints the temperature to LCD with one decimal place
     myLCD.write(0b11011111); myLCD.print("F | H");
     //humidity
     myLCD.print(curHumidRHT, 1); //prints the humidity with one decimal place
@@ -581,7 +577,7 @@ void mode2() //Altitude
   }
   else { myLCD.print("Temp Error"); }
 
-  if(debug_mode2) { Serial.print(curTemp); Serial.println("F | ");
+  if(debug_mode2) { Serial.print(curTempF); Serial.println("F | ");
                     Serial.print(curHumidRHT); Serial.println("% RH"); }
 
   LCDsetPosition(3,11);
@@ -600,7 +596,7 @@ void mode2() //Altitude
   else                                        { myLCD.print(">10k Feet"); }
 
 
-  //Serial.println(curTemp);
+  //Serial.println(curTempF);
   //Serial.println(curBarAlt);
 }
 
@@ -1003,14 +999,10 @@ void printTSLError(byte error) // If there's an TSL I2C error, this function wil
 
 void printGlobals() {
   if(debug_setup) Serial.println("Global Variables:");
-  if(debug_setup) Serial.print("Global Delay: ");
-  if(debug_setup) Serial.println(globalDelay);
-  if(debug_setup) Serial.print("LED Lux Level: ");
-  if(debug_setup) Serial.println(ledLuxLevel);
-  if(debug_setup) Serial.print("Switch Count: ");
-  if(debug_setup) Serial.println(switchCount);
-  if(debug_setup) Serial.print("Power Save: ");
-  if(debug_setup) Serial.println(powerSaveEnabled);
+  if(debug_setup) Serial.print("Global Delay: ");  if(debug_setup) Serial.println(globalDelay);
+  if(debug_setup) Serial.print("LED Lux Level: "); if(debug_setup) Serial.println(ledLuxLevel);
+  if(debug_setup) Serial.print("Switch Count: ");  if(debug_setup) Serial.println(switchCount);
+  if(debug_setup) Serial.print("Power Save: ");    if(debug_setup) Serial.println(powerSaveEnabled);
 }
 
 /* SWITCH HOLD [DEBOUNCE?] CODE?????
