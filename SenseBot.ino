@@ -6,10 +6,10 @@
 /* *************************************************************************
  *    ********* READ THESE INSTRUCTIONS! *********
  *  This project uses a custom enclosure, custom PCB design (public design coming soon), and various sensors and componentry, including an
- *  Arduino Pro Mini with an Atmel ATmega328p processor, a Digi International/MaxStream XBee 1mW 802.15.4 Series 1 radio module (with trace antenna), a STMicro LSM303D Accelerometer/Magnetometer and Compass,
- *  a Freescale MPL3115A2 Temperature and Barometric Pressure sensor, a Honeywell HIH4030 Humidity sensor, a TexasAOS TSL2561 Light and Illumination sensor, a Maxim Integrated DS1307 RTC for Date/Time storage and management (daughtercard), 
- *  a Maxim MAX17043G+U LiPo Monitoring module, a dual TI TPS61200/Microchip MCP73831T for LiPo regulation and power distribution, a Pololu D24V6F3 and a S10V4F5 for voltage regulation, 
- *  a PIC16F88-enabled character 20x4 Serial LCD panel, and a SparkFun Red TTL 654.5nm Class 3A Laser (detachable). 
+ *  Atmel ATmega328P-AU processor, a Digi International/MaxStream XBee 1mW 802.15.4 Series 1 radio module (with trace antenna), a STMicro LSM303D Accelerometer/Magnetometer and Compass,
+ *  a Freescale MPL3115A2 Temperature and Barometric Pressure sensor, a Honeywell HIH4030 Humidity sensor, a TexasAOS TSL2561 Light and Illumination sensor, 
+ *  a Maxim Integrated DS1307 RTC for Date/Time storage and management (daughtercard), a Maxim MAX17043G+U LiPo Monitoring module, a dual TI TPS61200/Microchip MCP73831T for LiPo regulation and power distribution, 
+ *  a Pololu D24V6F3 and S10V4F5 for voltage regulation, a PIC16F88-enabled character 20x4 Serial LCD panel, and a SparkFun Red TTL 654.5nm Class 3A Laser (detachable). 
  *  The I2C LiPo SDA/SCL control uses a Omron G5V-2 Relay (DPDT, although DPST will work), and the sound is produced by a Multicomp MCKPT-G1210 Piezo Buzzer. 
  *  
  *  Modes are as follows: Off - Accelerometer/Compass - Altitude(Atmosphere, Temp, Altitude, Humididy, Pressure) - Light(lux, laser) - Warning
@@ -32,10 +32,12 @@
  * "THE BEER-WARE LICENSE"
  * As long as you retain this notice you can do whatever you want with this stuff. 
  * If we meet some day, and you think this stuff is worth it, you can buy me a beer.
- 
+ *
  * *************************************************************************
  */
 const String sbVersion = "v0.5b1";
+#define PCBVERSION1.0
+const double pcbVersion = 1.0;
 
 #include "Arduino.h"
 #include "Wire.h"
@@ -56,12 +58,12 @@ const String sbVersion = "v0.5b1";
 #include <DS1307RTC.h>
 
 
-#define PCBVERSION1.0
-const double pcbVersion = 1.0;
-
 //Clarify definitions for pin reference
 #ifdef PCBVERSION1.0
+#define LCDPIN 4
 #define XBEELED 5
+#define XBEETX 6
+#define XBEERX 7
 #define PWSAVE 8
 #define BUZZER 9
 #define LASEREN 10
@@ -74,21 +76,25 @@ const double pcbVersion = 1.0;
 #define MCUONLED A3
 #define STAT2 A6
 #define ERRORLED A7
+#define MIC null
 
 #elif defined PCBVERSION2.0
+#define LCDPIN A2
 #define XBEELED 5
-#define PWSAVE 8
-#define BUZZER 9
+#define XBEETX 4
+#define XBEERX 7
+#define BUZZER 6  
 #define LASEREN 10
 #define BUTTONLED 11
-#define RELAY 12
+#define RELAY A3
 #define ONETHREE 13
-#define HIH4030_PIN A7
+#define HIH4030_PIN A6
 #define XBEESLEEPD A1
-#define STAT1 A2
-#define MCUONLED A3
-#define STAT2 A6
+#define STAT1 9
+#define MCUONLED 8
+#define STAT2 12
 #define ERRORLED A0
+#define MIC A7
 
 #endif
 
@@ -165,13 +171,12 @@ LSM303 lsm;         //I2C - initialize compass/accelerometer
 SFE_TSL2561 tsl;    //I2C - initialize light sensor
 HIH4030 calHumid(HIH4030_PIN, HIH4030_SUPPLY_VOLTAGE, ARDUINO_VCC);        //Analog - initialize humidity sensor (calibrated)
 //HIH4030 uncalHumid(HIH4030_PIN, HIH4030_SUPPLY_VOLTAGE, ARDUINO_VCC);    //Analog - initialize humidity sensor
-SoftwareSerial xbee(7,6); //7 iRX, 6 iTX* //initialize XBee
-//SendOnlySoftwareSerial myLCD(4); //4 TX* ##CUSTOM //redefined in lcdCommands.h
-//SoftwareSerial myLCD(5,4); //5 RX, 4 TX //redefined in lcdCommands.h ##not used
+SoftwareSerial xbee(XBEERX,XBEETX); //7 iRX, 6 or 4 iTX* //initialize XBee
+//SendOnlySoftwareSerial myLCD(LCDPIN); //4 or A2 TX* ##CUSTOM //redefined in lcdCommands.h
 
 void setup()
 { 
-  if (pcbVersion==2.0) {setPins2();} else {
+  if (pcbVersion==1.0) {
     pinMode(2, INPUT_PULLUP); //for interrupt 0 (this is the mode button)
     pinMode(3, INPUT_PULLUP); //for interrupt 1 (this is the XBee interrupt) #PWM
   //pinMode(4, OUTPUT);    //LCD RX/TX is on pin 4 **SendOnlySoftwareSerial
@@ -193,9 +198,10 @@ void setup()
     pinMode(A6, OUTPUT);   //MCU Status 2 LED
     pinMode(A7, OUTPUT);   //Error LED
   }
+  else {setPins2();}
   
   analogWrite(BUTTONLED, ledLuxLevel);     //turn on LED initially
-  digitalWrite(PWSAVE, !powerSaveEnabled); //power-save mode (HIGH=off, LOW=on)
+  if(pcbVersion==1.0) digitalWrite(PWSAVE, !powerSaveEnabled); //power-save mode (HIGH=off, LOW=on)
   digitalWrite(ONETHREE, HIGH);            //activate builtin LED
   digitalWrite(MCUONLED, LOW);             //we will activate 'MCU On' LED after the init setup
   digitalWrite(RELAY, HIGH);               //start SDA/SCL batt monitor relay, leave on permanently
@@ -318,7 +324,7 @@ void loop() {
   if (initSet == 0) //if we just switched modes, execute these "housekeeping" commands
   {
     if (prevMode == 3 && mode != 3) { laser_pwr = 0; digitalWrite(LASEREN, HIGH); /*digitalWrite(STAT2, LOW);*/ digitalWrite(ONETHREE, LOW); } //disable laser
-    if (powerSaveEnabled && mode != 0) digitalWrite(PWSAVE, HIGH);
+    if (pcbVersion==1.0 && powerSaveEnabled && mode != 0) digitalWrite(PWSAVE, HIGH);
     if (mode == -1) { buzz(BUZZER,400,200); delay(200); //buzz(BUZZER,400,200); //buzz on pin 9 at 400hz for 200ms
                       mode = 0; if(debug_loop) Serial.println("ModeSetTo0"); }
   }
@@ -334,9 +340,12 @@ void loop() {
     time_t t = processSyncMessage();
     if (t != 0) { RTC.set(t); setTime(t); } // set the RTC and the system time to the received value
     //if(debug_loop) { Serial.print(curTimeMDY); Serial.print(" "); Serial.println(curTimeHMS); }
-    if(debug_loop) { Serial.print(genCurTimeMDY()); Serial.print(" "); Serial.println(genCurTimeHMS()); }
+    String genCurTimeMDYStr = genCurTimeMDY();
+    String genCurTimeHMSStr = genCurTimeHMS();
+    if(debug_loop) { Serial.print(genCurTimeMDYStr); Serial.print(" "); Serial.println(genCurTimeHMSStr); }
     //xbee.print(genCurTimeMDY()); xbee.print(" "); xbee.println(genCurTimeHMS()); 
-    xbee.println(genCurTimeMDY()+ " " + genCurTimeHMS()); 
+    xbee.println(genCurTimeMDYStr+ " " + genCurTimeHMSStr);
+    LCDsetPosition(2,1); myLCD.print(genCurTimeMDYStr + " " + genCurTimeHMSStr);
   }
 
   //GLOBAL BATTERY STAT
@@ -967,7 +976,7 @@ String genCurTimeMDY() {
 void altbarStarter() {
   altbar.setModeAltimeter(); // Measure altitude above sea level in meters
   altbar.setOversampleRate(7); // Set Oversample to the recommended 128
-  altbar.enableEventFlags(); // Enable all three pressure and temp event flags 
+  altbar.enableEventFlags(); // Enable all three pressure and temp event flags
 }
 
 int freeRam () {
@@ -1029,6 +1038,40 @@ void printGlobals() {
   if(debug_setup) Serial.print(" | Switch Count: ");  if(debug_setup) Serial.print(switchCount);
   if(debug_setup) Serial.print(" | Power Save: ");    if(debug_setup) Serial.println(powerSaveEnabled);
 }
+
+
+
+double getInternalTemp(void)
+{
+  unsigned int wADC;
+  double t;
+
+  // The internal temperature has to be used
+  // with the internal reference of 1.1V.
+  // Channel 8 can not be selected with
+  // the analogRead function yet.
+
+  // Set the internal reference and mux.
+  ADMUX = (_BV(REFS1) | _BV(REFS0) | _BV(MUX3));
+  ADCSRA |= _BV(ADEN);  // enable the ADC
+
+  delay(20);            // wait for voltages to become stable.
+
+  ADCSRA |= _BV(ADSC);  // Start the ADC
+
+  // Detect end-of-conversion
+  while (bit_is_set(ADCSRA,ADSC));
+
+  // Reading register "ADCW" takes care of how to read ADCL and ADCH.
+  wADC = ADCW;
+
+  // The offset of 324.31 could be wrong. It is just an indication.
+  t = (wADC - 324.31 ) / 1.22;
+
+  // The returned temperature is in degrees Celcius.
+  return (t);
+}
+
 
 /* SWITCH HOLD [DEBOUNCE?] CODE?????
  int varSWITCH_PIN = 0;  //variable to store switch presses
