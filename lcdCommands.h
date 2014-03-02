@@ -47,112 +47,74 @@ void LCDclearScreen()
   myLCD.write(0x01); 
 }
 //-------------------------------------------------------------------------------------------
-/*void LCDclearDisplay()
-{
-  //clears the screen, you will use this a lot!
-  myLCD.write(0xFE);
-  myLCD.write(0x01); 
-}*/
+void LCDclearDisplay() { LCDclearScreen(); } //deprecated: please use LCDclearScreen()
 //-------------------------------------------------------------------------------------------
-//NEW CUSTOM PROGRAM/UTILITY
 void LCDsetPosition(int line, int pos) //set position at line, position (1-4,1-20);
-{ 
-/*while (pos > 20) //if pos is greater than 20 (max), subtract 1 lines worth of chars and carriage return
-  {
-    pos -= 20; line++;
-    if (line > 4) { line = 1; } //if line > 4 (max), reset lines to 0;
-  }*/
+{
   if (pos > 0 && pos <= 20) {pos--;}   //if pos > than min (1) change to index, 1 --> 0, etc. (human --> index)
   else {pos=0;} //else reset to 0
-  
-  //modify based on lines
+
   if (line > 4 || line < 1) {line=1;} //if lines outside max reset to 0
-//else if (line == 1) //normal index
+//else if (line == 1); //normal index
   else if (line == 2) {pos += 64;}
   else if (line == 3) {pos += 20;}
   else if (line == 4) {pos += 84;}
   
   pos += 128;
-  myLCD.write(0xFE); //command flag
-  myLCD.write(pos); //write position
+  myLCD.write(0xFE); myLCD.write(pos); //command flag + write position
 }
 //-------------------------------------------------------------------------------------------
-void LCDclearLine(int line, int pos)
+void LCDclearLine(int line, int pos) //write whitespace starting at position until end of line
 {
   LCDsetPosition(line,pos); 
-  for(int count = pos; count < 21; count++){ myLCD.print(" "); }
-}
-
-void LCDclearLine(int line)
-{
-  LCDclearLine(line, 1);
-  //LCDsetPosition(line,1); myLCD.print("                    ");
+  for(int count = pos; count <= 20; count++) { myLCD.print(" "); } //write whitespace until end of line
 }
 //-------------------------------------------------------------------------------------------
-void LCDturnDisplayOn()
+void LCDclearLine(int line) { LCDclearLine(line, 1); } //write whitespace until end of line
+//-------------------------------------------------------------------------------------------
+void LCDturnDisplayOn() //this turns the display back ON
 {
-  //this turns the dispaly back ON
-  myLCD.write(0xFE); //command flag
-  myLCD.write(12); // 0x0C
+  myLCD.write(0xFE); myLCD.write(12); // 0x0C
 }
 //-------------------------------------------------------------------------------------------
-void LCDbrightness(int brightness)// 0 = OFF, 255 = Fully ON, everything inbetween = varied brightnbess 
-{
-  int bright=map(brightness, 0, 255, 128, 157);
-  //this function takes an int between 0-255 and turns the backlight on accordingly
-  myLCD.write(0x7C); //NOTE THE DIFFERENT COMMAND FLAG = 124 dec
-  myLCD.write(bright);
+void LCDbrightness(int brightness) { //this function takes an int between 0-255 and turns the backlight on accordingly
+// 0 = OFF, 255 = Fully ON, everything in-between = varied brightness [out of possible 30 different brightness levels]
+  myLCD.write(0x7C); myLCD.write(map(brightness, 0, 255, 128, 157)); //NOTE THE DIFFERENT COMMAND FLAG = 124 dec 
 }
 //-------------------------------------------------------------------------------------------
-//NEW CUSTOM PROGRAM/UTILITY (that we no longer use)
-/*void LCDclearScreenFull()
+void LCDbacklight(int lvl) //this function takes an int between 128-157 and turns the backlight on accordingly
+{
+  myLCD.write(0x7C); myLCD.write(lvl);  // any value between 128 and 157 or 0x80 and 0x9D
+}
+//-------------------------------------------------------------------------------------------
+void ChangeSerialLCDSplashScreen(String line1, String line2) { //change the splash screen of the LCD panel
+/* The two parameters are the 2nd and 3rd line of the display, and
+ * must be 20char strings, complete with whitespace offset if needed.
+ * NOTE: This should be run in it's own sketch, and you'll only need to run it once.
+ * This isn't meant to be run on every boot, as this changes the ROM memory in the LCD itself.
+ */
+  myLCD.write(0x7C); myLCD.write(0x03); delay(100);
+  myLCD.write(0x7C); myLCD.write(0x05); delay(100);
+  
+  LCDsetPosition(2,1); myLCD.print(line2); //2nd line
+  LCDsetPosition(1,1); myLCD.print(line1); //then first line
+  
+  delay(200); myLCD.write(0x7C); myLCD.write(0x0A);
+  while(1);
+}
+//-------------------------------------------------------------------------------------------
+void LCDtoggleSplash() //this toggles the splash screen [if off send this to turn on, if on send this to turn off]
+{
+  myLCD.write(0x7C); //command flag = 124 dec
+  myLCD.write(9); // 0x09
+}
+//-------------------------------------------------------------------------------------------
+/*void LCDclearScreenFull() //[DEPRECATED]
 {
   LCDsetPosition(1,1); myLCD.print("                    ");
   LCDsetPosition(2,1); myLCD.print("                    ");
   LCDsetPosition(3,1); myLCD.print("                    ");
   LCDsetPosition(4,1); myLCD.print("                    ");
-}
-//-------------------------------------------------------------------------------------------
-void LCDselectLineOne()
-{ 
-  //puts the cursor at line 0 char 0.
-  myLCD.write(0xFE); //command flag
-  myLCD.write(128); //position
-}
-//-------------------------------------------------------------------------------------------
-void LCDselectLineTwo()
-{ 
-  //puts the cursor at line 0 char 0.
-  myLCD.write(0xFE); //command flag
-  myLCD.write(192); //position
-}
-//-------------------------------------------------------------------------------------------
-void LCDmoveCursorRightOne()
-{
-  //moves the cursor right one space
-  myLCD.write(0xFE); //command flag
-  myLCD.write(20); // 0x14
-}
-//-------------------------------------------------------------------------------------------
-void LCDmoveCursorLeftOne()
-{
-  //moves the cursor left one space
-  myLCD.write(0xFE); //command flag
-  myLCD.write(16); // 0x10
-}
-//-------------------------------------------------------------------------------------------
-void LCDscrollRight()
-{
-  //same as moveCursorRightOne
-  myLCD.write(0xFE); //command flag
-  myLCD.write(20); // 0x14
-}
-//-------------------------------------------------------------------------------------------
-void LCDscrollLeft()
-{
-  //same as moveCursorLeftOne
-  myLCD.write(0xFE); //command flag
-  myLCD.write(24); // 0x18
 }
 //-------------------------------------------------------------------------------------------
 void LCDturnDisplayOff()
@@ -162,46 +124,28 @@ void LCDturnDisplayOff()
   myLCD.write(8); // 0x08
 }
 //-------------------------------------------------------------------------------------------
-void LCDunderlineCursorOn()
+void LCDunderlineCursorOn() //turns the underline cursor on
 {
-  //turns the underline cursor on
   myLCD.write(0xFE); //command flag
   myLCD.write(14); // 0x0E
 }
 //-------------------------------------------------------------------------------------------
-void LCDunderlineCursorOff()
+void LCDunderlineCursorOff() //turns the underline cursor off
 {
-  //turns the underline cursor off
   myLCD.write(0xFE); //command flag
   myLCD.write(12); // 0x0C
 }
 //-------------------------------------------------------------------------------------------
-void LCDboxCursorOn()
+void LCDboxCursorOn() //this turns the box cursor on
 {
-  //this turns the box cursor on
   myLCD.write(0xFE); //command flag
   myLCD.write(13); // 0x0D
 }
 //-------------------------------------------------------------------------------------------
-void LCDboxCursorOff()
+void LCDboxCursorOff() //this turns the box cursor off
 {
-  //this turns the box cursor off
   myLCD.write(0xFE); //command flag
   myLCD.write(12); // 0x0C
-}
-//-------------------------------------------------------------------------------------------
-void LCDtoggleSplash()
-{
-  //this toggles the splash screenif off send this to turn onif on send this to turn off
-  myLCD.write(0x7C); //command flag = 124 dec
-  myLCD.write(9); // 0x09
-}
-//-------------------------------------------------------------------------------------------
-void LCDbacklight(int brightness)// 128 = OFF, 157 = Fully ON, everything inbetween = varied brightnbess 
-{
-  //this function takes an int between 128-157 and turns the backlight on accordingly
-  myLCD.write(0x7C); //NOTE THE DIFFERENT COMMAND FLAG = 124 dec
-  myLCD.write(brightness); // any value between 128 and 157 or 0x80 and 0x9D
 }
 //-------------------------------------------------------------------------------------------
 void LCDscrollingMarquee()
@@ -236,30 +180,6 @@ void LCDcounter()
   }
 }
 //-------------------------------------------------------------------------------------------
-void LCDtempAndHumidity()
-{
-  //this function shows how you could read the data from a temerature and humidity 
-  //sensro and then print that data to the SermyLCD.
-  
-  //these could be varaibles instead of static numbers 
-  float tempF = 77.0; 
-  float tempC = 25.0;
-  float humidity = 67.0;
-  
-  LCDclearScreen();
-  LCDselectLineOne();
-  myLCD.print(" Temp = ");
-  myLCD.print((long)tempF, DEC);
-  myLCD.print("F ");
-  myLCD.print((long)tempC, DEC);
-  myLCD.print("C");
-  LCDselectLineTwo();
-  myLCD.print(" Humidity = ");
-  myLCD.print((long)humidity, DEC); 
-  myLCD.print("%");
-  delay(2500);
-}
-//-------------------------------------------------------------------------------------------
 void LCDbacklight()
 {
   //this function shows the different brightnesses to which the backlight can be set 
@@ -277,7 +197,7 @@ void LCDbacklight()
 //-------------------------------------------------------------------------------------------
 void LCDcursors()
 {
-  //this function shows the different cursors avaiable on the SermyLCD
+  //this function shows the different cursors avaiable
   LCDclearScreen();
   
   LCDboxCursorOn();
