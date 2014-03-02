@@ -11,11 +11,12 @@
 
 #elif defined PCBVERION2.0
 #define STAT1 A2
-#define MCUONLED A3
-#define STAT2 A6
+#define MCUONLED 8
+#define STAT2 A3
 #define ERRORLED A7
 
 #endif
+
 
 //void statusLight(boolean s1, boolean s2, boolean err);
 void statusLight(boolean s1, boolean s2, boolean err) {
@@ -43,6 +44,58 @@ void setStatusLight(boolean s1enable, boolean s1, boolean s2enable, boolean s2, 
   if(errenable) digitalWrite(ERRORLED, err);
 }
 
+
+/*void xbeeWrite(int xPin, boolean value) {
+  xbee.print("+++ATMY");
+}
+*/
+
+
+void setPins2() {
+  pinMode(2, INPUT_PULLUP); //for interrupt 0 (this is the mode button)
+  pinMode(3, INPUT_PULLUP); //for interrupt 1 (this is the XBee interrupt) #PWM
+//pinMode(4, OUTPUT);    //LCD RX/TX is on pin 4 **SendOnlySoftwareSerial
+  pinMode(5, OUTPUT);    //XBee Wireless Interupt LED #PWM
+//pinMode(6, OUTPUT);    //XBee (MCU to) RX is on pin 6 #PWM **SoftwareSerial
+//pinMode(7, OUTPUT);    //XBee (MCU to) TX is on pin 7 **SoftwareSerial
+  pinMode(8, OUTPUT);    //MCU-ON LED
+  pinMode(9, OUTPUT);    //Buzzer #PWM
+  pinMode(10, OUTPUT);   //Laser EN #PWM
+  pinMode(11, OUTPUT);   //LED for mode button (BUTTONLED) #PWM
+  pinMode(12, OUTPUT);   //I2C SDA/SCL Relay (RELAY)
+  pinMode(13, OUTPUT);   //Builtin LED
+  pinMode(A0, OUTPUT);   //Error LED
+  pinMode(A1, OUTPUT);   //XBee Sleep Pin
+  pinMode(A2, OUTPUT);   //MCU Status 1 LED
+  pinMode(A6, OUTPUT);   
+//pinMode(A4, INPUT);    //I2C SDA #PWM-S **Wire
+//pinMode(A5, INPUT);    //I2C SCL #PWM-S **Wire
+  pinMode(A3, OUTPUT);   //MCU Status 2 LED
+  pinMode(A7, INPUT);    //Humidity sensor
+}
+
+void setPins1() {
+  pinMode(2, INPUT_PULLUP); //for interrupt 0 (this is the mode button)
+  pinMode(3, INPUT_PULLUP); //for interrupt 1 (this is the XBee interrupt) #PWM
+//pinMode(4, OUTPUT);    //LCD RX/TX is on pin 4 **SendOnlySoftwareSerial
+  pinMode(5, OUTPUT);    //XBee Wireless Interupt LED #PWM
+//pinMode(6, OUTPUT);    //XBee (MCU to) RX is on pin 6 #PWM **SoftwareSerial
+//pinMode(7, OUTPUT);    //XBee (MCU to) TX is on pin 7 **SoftwareSerial
+  pinMode(8, OUTPUT);    //LiPo Regulator Power-Save
+  pinMode(9, OUTPUT);    //Buzzer #PWM
+  pinMode(10, OUTPUT);   //Laser EN #PWM
+  pinMode(11, OUTPUT);   //LED for mode button (BUTTONLED) #PWM
+  pinMode(12, OUTPUT);   //I2C SDA/SCL Relay (RELAY)
+  pinMode(13, OUTPUT);   //Builtin LED
+  pinMode(A0, INPUT);    //Humidity sensor
+  pinMode(A1, OUTPUT);   //XBee Sleep Pin
+  pinMode(A2, OUTPUT);   //MCU Status 1 LED
+  pinMode(A3, OUTPUT);   //MCU On LED
+//pinMode(A4, INPUT);    //I2C SDA #PWM-S **Wire
+//pinMode(A5, INPUT);    //I2C SCL #PWM-S **Wire
+  pinMode(A6, OUTPUT);   //MCU Status 2 LED
+  pinMode(A7, OUTPUT);   //Error LED
+}
 
 /*
 #include <iostream>
