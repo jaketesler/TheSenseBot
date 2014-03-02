@@ -29,9 +29,16 @@ If we meet some day, and you think this stuff is worth it, you can buy me a beer
 
 ************************************************************************/
 
+#define PCBVERSION1.0
 
-SendOnlySoftwareSerial myLCD(4); //5 RX, 4 TX* ##CUSTOM
-//-------------------------------------------------------------------------------------------
+#ifdef PCBVERSION1.0
+#define LCDPIN 4
+
+#elif defined PCBVERSION2.0
+#define LCDPIN A2
+#endif
+
+SendOnlySoftwareSerial myLCD(LCDPIN); //5 RX, 4 TX* ##CUSTOM
 
 //-------------------------------------------------------------------------------------------
 void LCDclearScreen()
@@ -68,6 +75,18 @@ void LCDsetPosition(int line, int pos) //set position at line, position (1-4,1-2
   pos += 128;
   myLCD.write(0xFE); //command flag
   myLCD.write(pos); //write position
+}
+//-------------------------------------------------------------------------------------------
+void LCDclearLine(int line, int pos)
+{
+  LCDsetPosition(line,pos); 
+  for(int count = pos; count < 21; count++){ myLCD.print(" "); }
+}
+
+void LCDclearLine(int line)
+{
+  LCDclearLine(line, 1);
+  //LCDsetPosition(line,1); myLCD.print("                    ");
 }
 //-------------------------------------------------------------------------------------------
 void LCDturnDisplayOn()
