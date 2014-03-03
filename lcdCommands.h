@@ -67,7 +67,7 @@ void LCDsetPosition(int line, int pos) //set position at line, position (1-4,1-2
 void LCDclearLine(int line, int pos) //write whitespace starting at position until end of line
 {
   LCDsetPosition(line,pos); 
-  for(int count = pos; count <= 20; count++) { myLCD.print(" "); } //write whitespace until end of line
+  for(int count = pos; count < 21; count++) { myLCD.print(" "); } //write whitespace until end of line
 }
 //-------------------------------------------------------------------------------------------
 void LCDclearLine(int line) { LCDclearLine(line, 1); } //write whitespace until end of line

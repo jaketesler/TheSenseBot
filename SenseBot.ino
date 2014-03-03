@@ -39,7 +39,7 @@
  *
  * *************************************************************************
  */
-const String sbVersion = "v0.8b2";
+const String sbVersion = "v0.8.1r1";
 #define PCBVERSION1.0
 //#define PCBVERSION2.0
 const double pcbVersion = 1.0;
@@ -161,7 +161,7 @@ const uint8_t redrawMax = 10;
 
 //Laser strobe delay
 //balance these two
-const uint8_t strobeKnockVal = 1; //how much to change the value by per delay [recommended: 1-10]
+const uint8_t strobeKnockVal = 4; //how much to change the value by per delay [recommended: 1-10]
 const uint8_t strobeStopVal = 5; //delay to wait for (ms) [recommended: 3-12]
 
 
@@ -214,7 +214,7 @@ void setup()
     pinMode(A6, OUTPUT);   //MCU Status 2 LED
     pinMode(A7, OUTPUT);   //Error LED
   }
-  else {setPins2();}
+  else if (pcbVersion==2.0){setPins2();}
   
   analogWrite(BUTTONLED, ledLuxLevel);     //turn on LED initially
   if(pcbVersion==1.0) digitalWrite(PWSAVE, !powerSaveEnabled); //power-save mode (HIGH=off, LOW=on)
@@ -246,7 +246,7 @@ void setup()
     xbee.print(F("Ooops, no TSL2561 detected ... Check your wiring or I2C ADDR!"));
     statusLight(1,0,1); delay(10000); }
   
-  xbee.println("XBee Sleep..."); if(debug_setup) Serial.println(F("XBee Sleep..."));
+  //xbee.println("XBee Sleep..."); if(debug_setup) Serial.println(F("XBee Sleep..."));
   //digitalWrite(XBEESLEEPD, xbeeSleep); //start XBee sleep
   digitalWrite(XBEESLEEPD, LOW); //start XBee sleep //#flip this for product version
   analogWrite(XBEELED, ledLuxLevel); xbeeButtonLED = HIGH; //turn on XBee Button LED
@@ -262,7 +262,7 @@ void setup()
   //LCDbrightness(255); //increases binary size a lot
   LCDturnDisplayOn(); LCDclearScreen(); //clears LCD
   LCDsetPosition(1,1); myLCD.print(F("  Jim The SenseBot"));  xbee.println(F("Jim The SenseBot")); //splash
-  LCDsetPosition(2,1); myLCD.print(F("Built by Jake Tesler")); xbee.println(F("Built by Jake Tesler"));
+  LCDsetPosition(2,1); myLCD.print(F("Built by Jake Tesler")); //xbee.println(F("Built by Jake Tesler"));
   LCDsetPosition(3,1); myLCD.print(sbVersion); LCDsetPosition(3,11); myLCD.print(F("Build: 1.0"));
   LCDsetPosition(4,1); myLCD.print(F("Loading"));
   //for(int itime = 0; itime <= 1; itime++)
@@ -306,9 +306,9 @@ void setup()
    
   altbar.readTempF(); //for initial boot temperature eval
   altbar.readTemp();
-//calHumid.getTrueRH(curTempC);
+  altbar.setModeBarometer(); altbar.readPressure(); altbar.readTemp();
   //delay(1500);
-  delay(100);
+  //delay(100);
   LCDclearScreen();
   ///    #### We can re-enable these two code blocks for final release, unless space is an issue
 
@@ -554,7 +554,7 @@ void mode1() //Accelerometer/Compass
   float curHeading = lsm.heading();
   /*LCDsetPosition(2,1);
    myLCD.print("Heading: "); myLCD.print(curHeading);*/  //This would save space
-  LCDsetPosition(2,1); myLCD.print("Heading: ");/*LCDsetPosition(2,9);*/ myLCD.print(curHeading);
+  LCDsetPosition(2,1); myLCD.print("Heading: ");/*LCDsetPosition(2,9);*/ if(curHeading) {myLCD.print(curHeading); myLCD.write(0b11011111);}
   if(debug_mode1) { Serial.print("Heading: "); Serial.println(curHeading); }
 
   lsm.read();
@@ -601,6 +601,7 @@ void mode2() //Altitude
     LCDsetPosition(1,1); myLCD.print("Atmospheric");
     LCDsetPosition(2,1); myLCD.print("Temp:");
     LCDsetPosition(3,1); myLCD.print("Pressure:");
+    LCDclearLine(3,17);
     LCDsetPosition(4,1); myLCD.print("Altitude: ");
 
 
@@ -614,7 +615,8 @@ void mode2() //Altitude
     LCDsetPosition(1,1); myLCD.print("Atmospheric");
     LCDsetPosition(2,1); myLCD.print("Temp:");
     LCDsetPosition(3,1); myLCD.print("Pressure:");
-    LCDsetPosition(4,1); myLCD.print("Altitude: ");
+    LCDclearLine(4,20);
+    LCDsetPosition(4,1); myLCD.print("Altitude:");
   }
 
 
@@ -641,7 +643,7 @@ void mode2() //Altitude
   LCDsetPosition(3,11);
   altbar.setModeBarometer();
   float curBarPres = altbar.readPressure();
-  if (curBarPres < 115000) { myLCD.print(curBarPres, 0); myLCD.print(" Pa"); }
+  if (curBarPres < 115000) { myLCD.print(curBarPres, 0); myLCD.print(" Pa  "); }
   else                     { myLCD.print(">1k kPa"); }
   if(debug_mode2) { Serial.print(curBarPres); Serial.println(" Pa"); }
 
@@ -727,7 +729,7 @@ void mode3() //
       //if (tslSwitchCounter <= 1) {
         msInt=101; tslTime=1; //0 = 13.7ms, 1 = 101ms, 2 = 402ms, 3 = manual
         tsl.setTiming(tslGain,tslTime,msInt);
-        if(debug_verbose) xbee.println(F("Switching light integration"));
+        //if(debug_verbose) xbee.println(F("Switching light integration"));
         LCDsetPosition(2,5); myLCD.print(F("Sw Integration")); 
       //}
       delay(1250);
@@ -749,13 +751,15 @@ void mode3() //
   else { statusLight(1,0,1); printTSLError(tsl.getError()); }
   
   LCDsetPosition(4,14); 
-  if(laser_pwr > 5) { 
+  if(laser_pwr > 8) { 
     if (laser_pwr < 100) myLCD.print(" "); 
       if (laser_pwr < 10) myLCD.print(" ");
     myLCD.print(laser_pwr); myLCD.print(F("/255")); 
   }
   else if (laser_pwr == 0) {myLCD.print("    OFF"); }
-  else { myLCD.print(F(" STROBE")); }
+  else if (laser_pwr == 4) { myLCD.print(F(" STROBE")); }
+  else if (laser_pwr == 5) { myLCD.print(F("BREATHE")); }
+  //else myLCD.print(F("  ERROR"));
   //###recheck with hardware to find optimal "brightness zone"
   //shift 0-400lux to 50-255brightness
   /*if (currentLuxLevel < 400) */ analogWrite(BUTTONLED, map(currentLuxLevel, 0, 400, 50, 255)); //set the brightness of the LED to ~room brightness
@@ -778,6 +782,7 @@ void mode3() //
     for (int val = 255; val > 0; val-=strobeKnockVal)  {analogWrite(LASEREN, val); delay(strobeStopVal);} delay(200); //brighten laser
     for (int val = 0; val <= 255; val+=strobeKnockVal) {analogWrite(LASEREN, val); delay(strobeStopVal);} delay(100); //dim laser
   }
+  if (laser_pwr == 5) { laserBreathe(); }
 
 
 }
@@ -948,17 +953,16 @@ void interrupt1() {
       //uint8_t setLaserPower; //for eeprom?
       switch(laser_pwr)
       {
-        case 0:   digitalWrite(LASEREN, LOW); laser_pwr = 255; break; //enable laser, now at full brightness
-        case 255: analogWrite(LASEREN, 127);  laser_pwr = 127; break; //now at 127 brightness
-        //case 127: analogWrite(LASEREN, 255-50);   laser_pwr = 255-50;  break; //now at 50 brightness
-        case 127: analogWrite(LASEREN, 210);   laser_pwr = 45; break; //now at 45 brightness
-        //case 50:  analogWrite(LASEREN, 255-12);   laser_pwr = 255-12;  break; //now at 12 brightness
-        case 45:  digitalWrite(LASEREN, LOW); laser_pwr = 4;   break; //now strobing
-        case (3 || 4): digitalWrite(LASEREN, HIGH); /*digitalWrite(STAT2, LOW);*/ digitalWrite(ONETHREE, LOW); laser_pwr = 0; break; //turn off laser, now off
-      //case 3:    digitalWrite(LASEREN, HIGH); /*digitalWrite(STAT2, LOW);*/ digitalWrite(ONETHREE, LOW); laser_pwr = 0; break; //turn off laser, now off
+        case 0:  digitalWrite(LASEREN, LOW);    laser_pwr = 255; break; //enable laser, now at full brightness
+        case 255: analogWrite(LASEREN, 127);    laser_pwr = 127; break; //now at 127 brightness
+        case 127: analogWrite(LASEREN, 210);    laser_pwr = 45;  break; //now at 45 brightness
+        case 45: digitalWrite(LASEREN, LOW);    laser_pwr = 4;   break; //now strobing
+    case (4||3): digitalWrite(LASEREN, HIGH);   laser_pwr = 5;   break; //now breathing
+        case 5:  digitalWrite(LASEREN, HIGH);   laser_pwr = 0;   break; //turn off laser, now off
+      //case 3:  digitalWrite(LASEREN, HIGH); /*digitalWrite(STAT2, LOW);*/ digitalWrite(ONETHREE, LOW); laser_pwr = 0; break; //turn off laser, now off
         default:
           digitalWrite(LASEREN, HIGH); /*digitalWrite(STAT2, LOW);*/ digitalWrite(ONETHREE, LOW); laser_pwr = 0; //disable laser due to var error
-          if(debug_verbose) xbee.println(F("Laser Var Error"));
+          //if(debug_verbose) xbee.println(F("Laser Var Error"));
       }
       //if (laser_pwr > 0 && laser_pwr < 10) /*digitalWrite(STAT2, HIGH);*/ digitalWrite(ONETHREE, HIGH); //effectively, if laser is on (but we don't deal with strobing here) 
       if (laser_pwr > 5) /*digitalWrite(STAT2, HIGH);*/ digitalWrite(ONETHREE, HIGH); //effectively, if laser is on (but we don't deal with strobing here) 
