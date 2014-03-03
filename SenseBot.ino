@@ -82,7 +82,7 @@ const double pcbVersion = 1.0;
 #define MCUONLED A3
 #define STAT2 A6
 #define ERRORLED A7
-#define MIC null
+#define MIC 0
 
 #elif defined PCBVERSION2.0
 #define LCDPIN A2
@@ -500,7 +500,10 @@ void mode0() //off-recharge
     myLCD.print(((millis()/1000) % 60),1); myLCD.print("s"); //secs
     if(((millis()/1000) % 60) < 10) myLCD.print(" ");
     
-    LCDsetPosition(4,13); myLCD.print("I:"); myLCD.print(getInternalTemp('F'), 1); myLCD.write(0b11011111); myLCD.print("F");
+    //internal temperature (v1)
+    if(pcbVersion==1.0)      { LCDsetPosition(4,13); myLCD.print("I:"); myLCD.print(getInternalTemp('F'), 1); myLCD.write(0b11011111); myLCD.print("F"); }
+    else if(pcbVersion==2.0) { LCDsetPosition(4,13); myLCD.print(analogRead(MIC), 1); myLCD.print("dB"); }
+    
   }
   //else interrupt0(); //crash protection of some sort?
 }
