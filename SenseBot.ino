@@ -5,16 +5,19 @@
 
 /* *************************************************************************
  *    ********* READ THESE INSTRUCTIONS! *********
- *  This project uses a custom enclosure, custom PCB design (public design coming soon), and various sensors and componentry, including an
- *  Atmel ATmega328P-AU processor, a Digi International/MaxStream XBee 1mW 802.15.4 Series 1 radio module (with trace antenna), a STMicro LSM303D Accelerometer/Magnetometer and Compass,
- *  a Freescale MPL3115A2 Temperature and Barometric Pressure sensor, a Honeywell HIH4030 Humidity sensor, a TexasAOS TSL2561 Light and Illumination sensor, 
- *  a Maxim Integrated DS1307 RTC for Date/Time storage and management (daughtercard), a Maxim MAX17043G+U LiPo Monitoring module, a dual TI TPS61200/Microchip MCP73831T for LiPo regulation and power distribution, 
- *  a Pololu D24V6F3 and S10V4F5 for voltage regulation, a PIC16F88-enabled character 20x4 Serial LCD panel, and a SparkFun Red TTL 654.5nm Class 3A Laser (detachable). 
- *  The I2C LiPo SDA/SCL control uses a Omron G5V-2 Relay (DPDT, although DPST will work), and the sound is produced by a Multicomp MCKPT-G1210 Piezo Buzzer. 
- *  This combined hardware produces a device with 7DOF, integrated temperature and (limited) weather monitoring, area condition sensing and environmental surroundings awareness. 
+ *  This project uses a custom enclosure, custom PCB design (public design coming soon), and various sensors and componentry, including the following: 
+ *  Atmel ATmega328P-AU processor, Digi International/MaxStream XBee 1mW 802.15.4 Series 1 radio module (with trace antenna), STMicro LSM303D Accelerometer/Magnetometer and Compass,
+ *  Freescale MPL3115A2 Temperature and Barometric Pressure sensor, Honeywell HIH4030 Humidity sensor, TexasAOS TSL2561 Light and Illumination (IR and Visible) sensor, 
+ *  Maxim Integrated DS1307 RTC for Date/Time storage and management (daughtercard for v1), 
+ *  Maxim MAX17043G+U LiPo Monitoring module, dual TI TPS61200/Microchip MCP73831T package for LiPo regulation and power distribution, 
+ *  Pololu D24V6F3 and S10V4F5 for voltage regulation, HD44780 PIC16F88-enabled character 20x4 Serial LCD panel, and SparkFun Red TTL 654.5nm Class 3A Laser (detachable). 
+ *  The I2C LiPo SDA/SCL control uses a Omron G5V-2 Relay (DPDT, although DPST will work), and sound is produced by a Multicomp MCKPT-G1210 Piezo Buzzer. 
  *  
+ *  This combined hardware produces a device with 7DOF (degrees of freedom), integrated temperature and (limited) weather monitoring, 
+ *  area condition sensing and environmental surroundings awareness. 
+ *  
+ *  Information:
  *  Modes are as follows: Off - Accelerometer/Compass - Altitude(Atmosphere, Temp, Altitude, Humididy, Pressure) - Light(lux, laser) - Warning
- *
  *  Debug Mode can be set in "debug.h".
  *
  *  LED Indicator Lights are used as follows: 
@@ -40,6 +43,7 @@ const String sbVersion = "v0.8b2";
 #define PCBVERSION1.0
 //#define PCBVERSION2.0
 const double pcbVersion = 1.0;
+//const double pcbVersion = 2.0;
 
 #include "Arduino.h"
 #include "Wire.h"
@@ -56,7 +60,7 @@ const double pcbVersion = 1.0;
 #include <SFE_TSL2561.h>
 #include <MPL3115A2.h>
 #include <HIH4030.h>
-#include <Time.h> //custom-adapted library
+#include <Time.h> //customized Arduino library
 #include <DS1307RTC.h>
 
 
@@ -263,7 +267,7 @@ void setup()
   LCDsetPosition(4,1); myLCD.print(F("Loading"));
   //for(int itime = 0; itime <= 1; itime++)
   for(int itime = 0; itime <= 2; itime++)
-  { 
+  {
     LCDsetPosition(4,8); myLCD.print("   ");
     delay(250);
     //uint8_t curDot = 0;
