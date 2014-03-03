@@ -246,8 +246,8 @@ void setup()
   //digitalWrite(XBEESLEEPD, xbeeSleep); //start XBee sleep
   digitalWrite(XBEESLEEPD, LOW); //start XBee sleep //#flip this for product version
   analogWrite(XBEELED, ledLuxLevel); xbeeButtonLED = HIGH; //turn on XBee Button LED
-  xbee.println(F("done. If you're reading this, you're not on wireless (or something broke)."));
-  if(debug_setup) Serial.println(F("done. If you're reading this, you're not on wireless (or something broke)."));
+  //xbee.println(F("done. If you're reading this, you're not on wireless (or something broke)."));
+  //if(debug_setup) Serial.println(F("done. If you're reading this, you're not on wireless (or something broke)."));
 
   //delay(500);
 /*digitalWrite(MCUONLED, LOW); delay(500);
@@ -265,16 +265,12 @@ void setup()
   for(int itime = 0; itime <= 2; itime++)
   { 
     LCDsetPosition(4,8); myLCD.print("   ");
+    delay(250);
     //uint8_t curDot = 0;
     LCDsetPosition(4,8);
-    for(uint8_t pixelDot = 1; pixelDot < 4; pixelDot++)
-    {
-      //LCDsetPosition(4, (pixelDot + 7)); 
-      myLCD.print("."); //curDot+8
-      delay(250);
-    }
-    delay(250);
+    for(uint8_t pixelDot = 1; pixelDot < 4; pixelDot++) { myLCD.print("."); delay(250); }
   }
+  //cyclone(3, 1000, 4, 12);
 
 
 /*
@@ -307,7 +303,8 @@ void setup()
   altbar.readTempF(); //for initial boot temperature eval
   altbar.readTemp();
 //calHumid.getTrueRH(curTempC);
-  delay(1500);
+  //delay(1500);
+  delay(100);
   LCDclearScreen();
   ///    #### We can re-enable these two code blocks for final release, unless space is an issue
 
@@ -499,7 +496,7 @@ void mode0() //off-recharge
     myLCD.print(((millis()/1000) % 60),1); myLCD.print("s"); //secs
     if(((millis()/1000) % 60) < 10) myLCD.print(" ");
     
-    LCDsetPosition(4,13); myLCD.print("I:"); myLCD.print(getInternalTempF(), 1); myLCD.write(0b11011111); myLCD.print("F");
+    LCDsetPosition(4,13); myLCD.print("I:"); myLCD.print(getInternalTemp('F'), 1); myLCD.write(0b11011111); myLCD.print("F");
   }
   //else interrupt0(); //crash protection of some sort?
 }
@@ -1107,14 +1104,19 @@ double getInternalTemp(void)
   ADCSRA |= _BV(ADEN); delay(20);  // Enable the ADC
   ADCSRA |= _BV(ADSC);             // Start the ADC
   while (bit_is_set(ADCSRA,ADSC)); // Detect end-of-conversion
-
   unsigned int iADC = ADCW;
   // Reading register "ADCW" takes care of how to read ADCL and ADCH.
   // Need to recalibrate 324.31...
   return ((double)(iADC - 324.31 ) / 1.22); //celsius
 }
+double getInternalTemp(char format) {
+  if (format == 'C' || format == 'c'){ return getInternalTemp(); }
+  else if (format == 'F' || format == 'f') { return (((getInternalTemp() * 9.0)/ 5.0) + 32.0); }
+  else return getInternalTemp();
+}
 
-double getInternalTempF(void) { return (((getInternalTemp() * 9.0)/ 5.0) + 32.0); }
+//double getInternalTempF(void) { return (((getInternalTemp() * 9.0)/ 5.0) + 32.0); } //[DEPRECATED]
+
 
 
 
