@@ -1,6 +1,9 @@
 /***********************************************************************
 This source code cites "SerLCD Example Code", Joel Bartlett, SparkFun Electronics. 
 
+Created by Jake Tesler for the COM-BAT System Project, 2012-2013
+Modified by Jake Tesler for the SenseBot Project, 2014-
+
 "THE BEER-WARE LICENSE"
 As long as you retain this notice you can do whatever you want with this stuff. 
 If we meet some day, and you think this stuff is worth it, you can buy me a beer.
@@ -31,7 +34,7 @@ void LCDsetPosition(uint8_t line, uint8_t pos) //set position at line, position 
 {
   //if (pos > 0 && pos <= 20) {pos--;}   //if pos > than min (1) change to index, 1 --> 0, etc. (human --> index)
   //else {pos=0;} //else reset to 0
-  if (pos > 20 || pos < 0) {pos=0;}
+  if (pos > 20 || pos <= 0) {pos=0;}
   
 //if      (line == 1); //normal index
   if      (line == 2) {pos += 64;}
@@ -51,6 +54,22 @@ void LCDclearLine(uint8_t line, uint8_t pos) //write whitespace starting at posi
 }
 //-------------------------------------------------------------------------------------------
 void LCDclearLine(uint8_t line) { LCDclearLine(line, 1); } //write whitespace until end of line
+//-------------------------------------------------------------------------------------------
+void LCDwhiteSpaceFromTo(uint8_t line, uint8_t fromPos, uint8_t toPos)
+{
+  uint8_t curPos = fromPos;
+  LCDsetPosition(line,fromPos); 
+  do {
+    myLCD.print(" "); curPos++;
+  }
+  while (curPos != toPos+1);
+}
+//-------------------------------------------------------------------------------------------
+void LCDwhiteSpace(uint8_t line, uint8_t fromPos, uint8_t length)
+{
+  LCDsetPosition(line,fromPos); 
+  for (int curPos = 1; curPos < length+1; curPos++) { myLCD.print(" "); }
+}
 //-------------------------------------------------------------------------------------------
 void LCDturnDisplayOn() //this turns the display back ON
 {
