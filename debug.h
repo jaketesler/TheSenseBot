@@ -1,4 +1,5 @@
 //const boolean debug = false;     //universal debug
+const boolean debug_serial = false; //this must be enabled for serial line debug
 const boolean debug_setup = false; //setup debug
 const boolean debug_loop = false;  //loop debug
 const boolean debug_mode0 = false; //mode0 debug
