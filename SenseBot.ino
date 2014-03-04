@@ -5,12 +5,12 @@
 
 /* *************************************************************************
  *    ********* READ THESE INSTRUCTIONS! *********
- *  This project uses a custom enclosure, custom PCB design (public design coming soon), and various sensors and componentry, including the following: 
+ *  This project uses a custom PCB design (public design coming soon), custom enclosure, and various sensors and componentry, including the following: 
  *  Atmel ATmega328P-AU processor, Digi International/MaxStream XBee 1mW 802.15.4 Series 1 radio module (with trace antenna), STMicro LSM303D Accelerometer/Magnetometer and Compass,
  *  Freescale MPL3115A2 Temperature and Barometric Pressure sensor, Honeywell HIH4030 Humidity sensor, TexasAOS TSL2561 Light and Illumination (IR and Visible) sensor, 
  *  Maxim Integrated DS1307 RTC for Date/Time storage and management (daughtercard for v1), 
  *  Maxim MAX17043G+U LiPo Monitoring module, dual TI TPS61200/Microchip MCP73831T package for LiPo regulation and power distribution, 
- *  Pololu D24V6F3 and S10V4F5 for voltage regulation, HD44780 PIC16F88-enabled character 20x4 Serial LCD panel, and SparkFun Red TTL 654.5nm Class 3A Laser (detachable). 
+ *  Pololu D24V6F3 and S10V4F5 for voltage regulation, Hitachi HD44780 PIC16F88-enabled character 20x4 Serial LCD panel, and SparkFun Red TTL 654.5nm Class 3A Laser (detachable). 
  *  The I2C LiPo SDA/SCL control uses a Omron G5V-2 Relay (DPDT, although DPST will work), and sound is produced by a Multicomp MCKPT-G1210 Piezo Buzzer. 
  *  
  *  This combined hardware produces a device with 7DOF (degrees of freedom), integrated temperature and (limited) weather monitoring, 
@@ -39,11 +39,13 @@
  *
  * *************************************************************************
  */
-const String sbVersion = "v0.8.1r1";
+const String sbVersion = "v0.8.1r2";
 #define PCBVERSION1.0
 //#define PCBVERSION2.0
 const double pcbVersion = 1.0;
 //const double pcbVersion = 2.0;
+
+
 
 #include "Arduino.h"
 #include "Wire.h"
@@ -62,6 +64,8 @@ const double pcbVersion = 1.0;
 #include <HIH4030.h>
 #include <Time.h> //customized Arduino library
 #include <DS1307RTC.h>
+#include <avr/pgmspace.h>
+
 
 
 //Clarify definitions for pin reference
@@ -122,14 +126,11 @@ const double pcbVersion = 1.0;
 #define MAX1704_ADDR 0x6D
 
 //Mode Information
-//volatile signed int mode = -1; //initial mode
-    volatile signed char mode = -1; //initial mode
-//volatile signed int prevMode = -1; //mode == 0 initially (really) and this will 
-    volatile signed char prevMode = -1; //mode == 0 initially (really) and this will 
+volatile signed char mode = -1; //initial mode
+volatile signed char prevMode = -1; //mode == 0 initially (really) and this will 
 //##confirm the check for mode accuracy...[(4)-0-1-2-3] cycle
 volatile boolean initSet = 0; //initial settings for each mode bit
-//volatile signed int warningShown = -1;
-    volatile signed char warningShown = -1;
+volatile signed char warningShown = -1;
 
 volatile unsigned long last_interrupt_time = 0; //int0
 //volatile unsigned long interrupt_time = millis(); //int0
@@ -137,7 +138,6 @@ volatile unsigned long last_interrupt_time = 0; //int0
 //volatile unsigned long interrupt1_time = millis(); //int1
 
 //laser
-//volatile unsigned int laser_pwr = 0;
 volatile uint8_t laser_pwr = 0;
 
 //xbee
@@ -147,11 +147,11 @@ boolean xbeeButtonLED = LOW;
 //RTC
 //String curTimeHMS;
 //String curTimeMDY;
-static boolean timeOn; //are we enabling time for this boot?
+boolean timeOn; //are we enabling time for this boot?
 
 //light sensor
 const boolean tslGain = 0;  // Gain setting, 0 = X1, 1 = X16; //this is const only because we don't change it below...but it is change-able
-unsigned char tslTime = 2; //integration time constant //0 = 13.7ms, 1 = 101ms, 2 = 402ms, 3 = manual, make sure to set both vars
+uint8_t tslTime = 2; //integration time constant //0 = 13.7ms, 1 = 101ms, 2 = 402ms, 3 = manual, make sure to set both vars
 unsigned int msInt;  // Integration ("shutter") time in milliseconds
 //static int tslSwitchCounter = 0;
 
@@ -163,18 +163,18 @@ const uint8_t redrawMax = 10;
 //balance these two
 const uint8_t strobeKnockVal = 4; //how much to change the value by per delay [recommended: 1-10]
 const uint8_t strobeStopVal = 5; //delay to wait for (ms) [recommended: 3-12]
-
+//static boolean laserStrobeDir = 1; //1 tells to rise (0->255), 0 tells to fall (255->0)
 
 //Animation tracker
-//signed int animStep = -17; //tracker for confusedAnimation()
-//const signed int initAnimStep = -17;
+//int8_t animStep = -17; //tracker for confusedAnimation()
+//const int8_t initAnimStep = -17;
 
 //Options
 const unsigned int globalDelay = 250; //global event delay in ms (milliseconds) {suggested values: 250, 500}
   #define globalDelayEEP 1
 const uint8_t ledLuxLevel = 200; //mode/XBee button LED brightness  (x out of 255)
   #define ledLuxLevelEEP 2
-const uint8_t switchCount = 15; //the number of intervals that elapse before the light sensor switches reverts sensitivity
+const uint8_t switchCount = 30; //the number of intervals that elapse before the light sensor switches reverts sensitivity
   #define switchCountEEP 3
 const boolean powerSaveEnabled = false; //enable or disable power-save functions for the regulator ###experimental
   #define powerSaveEnabledEEP 4
@@ -225,7 +225,7 @@ void setup()
   //digitalWrite(XBEELED, ledLuxLevel);      //XBee Button LED [inserted below]
 
 
-  if(debug_setup) Serial.begin(9600);
+  if(debug_serial) Serial.begin(9600);
   if(debug_setup) Serial.println("boot");
   if(debug_setup) printGlobals();
   
@@ -246,12 +246,12 @@ void setup()
     xbee.print(F("Ooops, no TSL2561 detected ... Check your wiring or I2C ADDR!"));
     statusLight(1,0,1); delay(10000); }
   
-  //xbee.println("XBee Sleep..."); if(debug_setup) Serial.println(F("XBee Sleep..."));
+  xbee.println("XBee Sleep..."); if(debug_setup) Serial.println(F("XBee Sleep..."));
   //digitalWrite(XBEESLEEPD, xbeeSleep); //start XBee sleep
   digitalWrite(XBEESLEEPD, LOW); //start XBee sleep //#flip this for product version
   analogWrite(XBEELED, ledLuxLevel); xbeeButtonLED = HIGH; //turn on XBee Button LED
-  //xbee.println(F("done. If you're reading this, you're not on wireless (or something broke)."));
-  //if(debug_setup) Serial.println(F("done. If you're reading this, you're not on wireless (or something broke)."));
+  xbee.println(F("done. If you're reading this, you're not on wireless (or something broke)."));
+  if(debug_setup) Serial.println(F("done. If you're reading this, you're not on wireless (or something broke)."));
 
   //delay(500);
 /*digitalWrite(MCUONLED, LOW); delay(500);
@@ -263,14 +263,11 @@ void setup()
   LCDturnDisplayOn(); LCDclearScreen(); //clears LCD
   LCDsetPosition(1,1); myLCD.print(F("  Jim The SenseBot"));  xbee.println(F("Jim The SenseBot")); //splash
   LCDsetPosition(2,1); myLCD.print(F("Built by Jake Tesler")); //xbee.println(F("Built by Jake Tesler"));
-  LCDsetPosition(3,1); myLCD.print(sbVersion); LCDsetPosition(3,11); myLCD.print(F("Build: 1.0"));
+  LCDsetPosition(3,1); myLCD.print(sbVersion); LCDsetPosition(3,11); myLCD.print(F("Build: ")); myLCD.print(pcbVersion);
   LCDsetPosition(4,1); myLCD.print(F("Loading"));
-  //for(int itime = 0; itime <= 1; itime++)
-  for(int itime = 0; itime <= 2; itime++)
+  for (uint8_t itime = 0; itime <= 2; itime++)
   {
-    LCDsetPosition(4,8); myLCD.print("   ");
-    delay(250);
-    //uint8_t curDot = 0;
+    LCDsetPosition(4,8); myLCD.print("   "); delay(250);
     LCDsetPosition(4,8);
     for(uint8_t pixelDot = 1; pixelDot < 4; pixelDot++) { myLCD.print("."); delay(250); }
   }
@@ -278,33 +275,16 @@ void setup()
 
 
 /*
-  const uint8_t dotdelay = 100;
-  LCDsetPosition(4,8); 
-  myLCD.print("."); 
-  delay(dotdelay);
-  LCDsetPosition(4,9); 
-  myLCD.print("."); 
-  delay(dotdelay);
-  LCDsetPosition(4,10); 
-  myLCD.print(".");
-  delay(750);*/
-  
-  /*LCDsetPosition(4,8); myLCD.print("   "); delay(dotdelay);
-   LCDsetPosition(4,8); myLCD.print("."); delay(dotdelay);
-   LCDsetPosition(4,9); myLCD.print("."); delay(dotdelay);
-   LCDsetPosition(4,10); myLCD.print("."); delay(500);
-   //cyclone(3, 1000, 4, 12); //delay(500);
-   
-   
-   //A funky loading animation
+    //A funky loading animation
    LCDsetPosition(4,17); myLCD.write(0x4F); myLCD.print("_o"); delay(167);
    LCDsetPosition(3,17); myLCD.print("_ _"); delay(333);
    LCDsetPosition(3,19); myLCD.print("-"); delay(167);
    LCDsetPosition(4,20); myLCD.print("?"); delay(333);
    LCDsetPosition(3,19); myLCD.print("_"); delay(167);
-   LCDsetPosition(3,19); myLCD.print("-"); delay(333);*/
+   LCDsetPosition(3,19); myLCD.print("-"); delay(333);
+*/
    
-  altbar.readTempF(); //for initial boot temperature eval
+  //altbar.readTempF(); //for initial boot temperature eval
   altbar.readTemp();
   altbar.setModeBarometer(); altbar.readPressure(); altbar.readTemp();
   //delay(1500);
@@ -334,7 +314,7 @@ void loop() {
     Serial.print("Free Mem:" ); Serial.print(freeRam()); Serial.println(" of 2048"); 
     Serial.println();
   }
-  if (debug_verbose) { xbee.print(F("Free Mem: ")); xbee.print(freeRam()); xbee.println(F(" bytes of 2048")); }
+  if (debug_verbose) { xbee.print(F("Free Mem: ")); xbee.print(freeRam()); xbee.println(F("/2048")); }
   
   //redraw protocol control
   if(redrawCounter > redrawMax) redrawCounter=0;
@@ -342,7 +322,8 @@ void loop() {
   
   if (initSet == 0) //if we just switched modes, execute these "housekeeping" commands
   {
-    if (prevMode == 3 && mode != 3) { laser_pwr = 0; digitalWrite(LASEREN, HIGH); /*digitalWrite(STAT2, LOW);*/ digitalWrite(ONETHREE, LOW); } //disable laser
+    if (prevMode == 3 && mode != 3) { laser_pwr = 0; /*laserStrobeDir = 1;*/ digitalWrite(LASEREN, HIGH); 
+                                    /*digitalWrite(STAT2, LOW);*/ digitalWrite(ONETHREE, LOW); } //disable laser
     if (pcbVersion==1.0 && powerSaveEnabled && mode != 0) digitalWrite(PWSAVE, HIGH);
     if (mode == -1) { buzz(BUZZER,400,200); delay(200); //buzz(BUZZER,400,200); //buzz on pin 9 at 400hz for 200ms
                       mode = 0; if(debug_loop) Serial.println("ModeSetTo0"); }
@@ -359,7 +340,7 @@ void loop() {
 
   //GLOBAL BATTERY STAT
   float battLevel = fuelGauge.stateOfCharge();
-  if(debug_loop)Serial.print("global batt "); if(debug_loop)Serial.println(battLevel);
+  if(debug_loop){ Serial.print("global batt "); Serial.println(battLevel); }
   LCDsetPosition(1,15); 
 
 /*  if (battLevel < 100 && battLevel >= 10) //if normal, between [10] and (100)
@@ -385,8 +366,8 @@ void loop() {
   else if (battLevel >= 100 && 
            battLevel < 255)    { myLCD.print("B FULL"); xbee.println("Battery Full"); }
   else if (battLevel >= 255)   { myLCD.print("PW_ERR"); xbee.println(F("Power Error")); digitalWrite(ERRORLED, HIGH); }
-  else if (battLevel <= -0.01) { myLCD.print("PWE_LW"); xbee.println(F("Battery Low Error")); digitalWrite(ERRORLED, HIGH); }
-  else                         { myLCD.print("B_SNSR"); xbee.println(F("Battery Sensor Error")); digitalWrite(ERRORLED, HIGH); }
+  else if (battLevel <= -0.01) { myLCD.print("PW_LOW"); xbee.println(F("Batt Low Err")); digitalWrite(ERRORLED, HIGH); }
+  else                         { myLCD.print("B_SNSR"); xbee.println(F("Batt Sensor Err")); digitalWrite(ERRORLED, HIGH); }
 
   switch(mode)
     {
@@ -467,7 +448,6 @@ void mode0() //off-recharge
     if (timeOn) {
       time_t t = processSyncMessage();
       if (t != 0) { RTC.set(t); setTime(t); } // set the RTC and the system time to the received value
-      //if(debug_loop) { Serial.print(curTimeMDY); Serial.print(" "); Serial.println(curTimeHMS); }
       String genCurTimeMDYStr = genCurTimeMDY();
       String genCurTimeHMSStr = genCurTimeHMS();
       if(debug_loop) { Serial.print(genCurTimeMDYStr); Serial.print(" "); Serial.println(genCurTimeHMSStr); }
@@ -529,7 +509,7 @@ void mode1() //Accelerometer/Compass
       LCDclearScreen();
       prevMode = 1; 
       LCDsetPosition(1,1); myLCD.print("Where Am I?"); if(debug_mode1)Serial.println("Where Am I?");
-      LCDsetPosition(2,1); myLCD.print("Heading: ");
+      LCDsetPosition(2,1); myLCD.print("Heading:");
     /*LCDsetPosition(3,1);  myLCD.print("A X: ");
       LCDsetPosition(3,8);  myLCD.print("Y: ");
       LCDsetPosition(3,15); myLCD.print("Z: ");
@@ -548,7 +528,7 @@ void mode1() //Accelerometer/Compass
   //redraw protocol
   if(redrawCounter >= redrawMax)
   {
-    LCDsetPosition(2,1); myLCD.print("Heading: ");
+    LCDsetPosition(2,1); myLCD.print("Heading:");
   }
   
   float curHeading = lsm.heading();
@@ -602,7 +582,7 @@ void mode2() //Altitude
     LCDsetPosition(2,1); myLCD.print("Temp:");
     LCDsetPosition(3,1); myLCD.print("Pressure:");
     LCDclearLine(3,17);
-    LCDsetPosition(4,1); myLCD.print("Altitude: ");
+    LCDsetPosition(4,1); myLCD.print("Altitude:");
 
 
     //interrupts();
@@ -631,7 +611,7 @@ void mode2() //Altitude
     myLCD.print(curTempF, 1); //prints the temperature to LCD with one decimal place
     myLCD.write(0b11011111); myLCD.print("F |  H");
     //humidity
-    if(curHumidRHT < 10) { myLCD.print("0"); }
+    if((int)curHumidRHT < 10) { myLCD.print("0"); }
     myLCD.print(curHumidRHT, 1); //prints the humidity with one decimal place
     myLCD.write(0b00100101); //'%'
   }
@@ -653,7 +633,7 @@ void mode2() //Altitude
   altbar.setModeAltimeter();
   float curBarAlt = altbar.readAltitudeFt();
   if (curBarAlt < 12000 && curBarAlt > -2000) { myLCD.print((curBarAlt), 1); myLCD.print(" Ft."); } //(" Feet ");
-  else                                        { myLCD.print(">10k Feet"); }
+  else                                        { myLCD.print(">10k Ft"); }
 
 
   //Serial.println(curTempF);
@@ -686,10 +666,10 @@ void mode3() //
 
 
     LCDsetPosition(1,1);  myLCD.print(F("Light Sensors"));
-    LCDsetPosition(2,1);  myLCD.print(F("Lux: "));
-    LCDsetPosition(3,1);  myLCD.print(F("Vis: "));
+    LCDsetPosition(2,1);  myLCD.print(F("Lux:"));
+    LCDsetPosition(3,1);  myLCD.print(F("Vis:"));
     LCDsetPosition(3,15); myLCD.print(F("Laser:"));
-    /*LCDsetPosition(4,1); */ myLCD.print(F(" IR: "));
+    /*LCDsetPosition(4,1); */ myLCD.print(F(" IR:"));
     
     //interrupts();
     //delay(100);
@@ -699,10 +679,9 @@ void mode3() //
     //redraw protocol
     if(redrawCounter == redrawMax)
     {
-      LCDsetPosition(2,1); myLCD.print("Lux: ");
-      LCDsetPosition(3,1); myLCD.print(F("Vis: "));
-      LCDsetPosition(3,15); myLCD.print(F("Laser:"));
-      LCDsetPosition(4,1); myLCD.print(F(" IR: "));
+      //LCDsetPosition(2,1); myLCD.print("Lux:");
+      LCDsetPosition(3,1); myLCD.print(F("Vis:"));
+      LCDsetPosition(3,15); myLCD.print(F("Laser: IR:")); //concatenated 
     }
   
   
@@ -712,43 +691,72 @@ void mode3() //
   
   
   if (tsl.getData(data0,data1)) { //if we have connectivity
-    if (tslSwitchCounter > switchCount)
+    if (tslSwitchCounter > switchCount) //if we need to switch back from integration
     {
       msInt=402; tslTime=2; //0 = 13.7ms, 1 = 101ms, 2 = 402ms, 3 = manual, make sure to set both vars
-      tsl.setTiming(tslGain,tslTime,msInt);
+      tsl.setTiming(tslGain,tslTime,msInt); delay(50);
       LCDclearLine(2);
       tslSwitchCounter = 0;
     }
-    else if (tslSwitchCounter > 0) {LCDclearLine(2); LCDsetPosition(2,19); myLCD.print(20-tslSwitchCounter); tslSwitchCounter++; }
+    else if (tslSwitchCounter > 0) { //if we are still switched
+      LCDsetPosition(2,14); myLCD.print(" LOW ");
+      if (switchCount-tslSwitchCounter+1 < 10) { myLCD.print(" "); }
+      myLCD.print(switchCount-tslSwitchCounter+1); 
+      tslSwitchCounter++; 
+    }
     
-    LCDsetPosition(2,1); myLCD.print("Lux: ");
+    //LCDsetPosition(2,1); myLCD.print("Lux: ");
     
     boolean good = tsl.getLux(tslGain,msInt,data0,data1,currentLuxLevel); //do we have a good (in-bounds) value [this line also generates lux value]
-    if (data0 == 65535 || data1 == 65535)
+    if (data0 == 65535 || data1 == 65535) //if we need to switch integration because of upper value
     {
       //if (tslSwitchCounter <= 1) {
         msInt=101; tslTime=1; //0 = 13.7ms, 1 = 101ms, 2 = 402ms, 3 = manual
         tsl.setTiming(tslGain,tslTime,msInt);
-        //if(debug_verbose) xbee.println(F("Switching light integration"));
+        if(debug_verbose) xbee.println(F("Sw Integration"));
         LCDsetPosition(2,5); myLCD.print(F("Sw Integration")); 
       //}
       delay(1250);
-      LCDclearScreen(); delay(50);
-      LCDsetPosition(1,1); myLCD.print(F("Light Sensors"));
-      LCDsetPosition(2,1); myLCD.print("Lux: ");
-      LCDsetPosition(3,15); myLCD.print(F("Laser:")); 
+      LCDclearLine(2,5); delay(50);
+      //LCDsetPosition(2,1); myLCD.print("Lux: "); //moved below
       tslSwitchCounter = 1;
     }
     if (good) {
-      LCDclearLine(2,10);
-      LCDsetPosition(2,6); myLCD.print(currentLuxLevel);
-      if(tslSwitchCounter > 0) { myLCD.print(" S"); } //if we have temporarily switched
+      LCDsetPosition(2,6); myLCD.print(currentLuxLevel); 
+        if( tslSwitchCounter > 0 && currentLuxLevel > 1000) {myLCD.print("  ");} else myLCD.print("   ");
+      LCDsetPosition(3,8); myLCD.print("   ");
       LCDsetPosition(3,6); myLCD.print(data0);
+      LCDsetPosition(4,8); myLCD.print("   ");
       LCDsetPosition(4,6); myLCD.print(data1);
     }
-    else { LCDsetPosition(2,5); myLCD.print(F("Bad Lux Value")); }
+    else if (tslSwitchCounter != 1) { LCDsetPosition(2,5); myLCD.print(F("Bad Value")); } //bug fix for persistance of the string on screen
+    
+    LCDsetPosition(2,1); myLCD.print("Lux: ");
   }
-  else { statusLight(1,0,1); printTSLError(tsl.getError()); }
+  else { statusLight(1,0,1); printTSLError(tsl.getError()); delay(10000);}
+  
+  
+  
+  //###recheck with hardware to find optimal "brightness zone"
+  //shift 0-400lux to 50-255brightness
+  //if (currentLuxLevel < 400) analogWrite(BUTTONLED, map(currentLuxLevel, 0, 400, 50, 255)); //set the brightness of the LED to ~room brightness
+  //else                       analogWrite(BUTTONLED, map(currentLuxLevel, 0, 2000, 50, 255)); //set the brightness of the LED to ~room brightness
+  
+  if (currentLuxLevel < 1) analogWrite(BUTTONLED, map_double(currentLuxLevel, 0, 1, 20, 255)); //set the brightness of the LED to ~room brightness
+  else if (currentLuxLevel < 400) analogWrite(BUTTONLED, map(currentLuxLevel, 0, 400, 20, 255)); //set the brightness of the LED to ~room brightness
+  //else if (currentLuxLevel < 2000) analogWrite(BUTTONLED, map(currentLuxLevel, 0, 2000, 50, 255)); //set the brightness of the LED to ~room brightness
+  else analogWrite(BUTTONLED, ledLuxLevel); //set the brightness of the LED to ~room brightness
+  
+  
+  static uint8_t xbeeLEDCount = 0;
+  //Blink XBee Button LED
+  if (xbeeLEDCount > 3) { //4 beats or greater
+    if (xbeeButtonLED) digitalWrite(XBEELED, LOW);        //turn off XBee Button LED
+    else               analogWrite(XBEELED, ledLuxLevel); //turn on XBBL to light level
+    xbeeLEDCount = 0;
+    xbeeButtonLED = !xbeeButtonLED;
+  }
+  else xbeeLEDCount++;
   
   LCDsetPosition(4,14); 
   if(laser_pwr > 8) { 
@@ -756,33 +764,30 @@ void mode3() //
       if (laser_pwr < 10) myLCD.print(" ");
     myLCD.print(laser_pwr); myLCD.print(F("/255")); 
   }
-  else if (laser_pwr == 0) {myLCD.print("    OFF"); }
-  else if (laser_pwr == 4) { myLCD.print(F(" STROBE")); }
+  else if (laser_pwr == 0) { myLCD.print("    OFF"); }
   else if (laser_pwr == 5) { myLCD.print(F("BREATHE")); }
+  else if (laser_pwr == 4) { myLCD.print(F(" STROBE")); }
+  else if (laser_pwr == 6) { myLCD.print(F("   FADE")); }
   //else myLCD.print(F("  ERROR"));
-  //###recheck with hardware to find optimal "brightness zone"
-  //shift 0-400lux to 50-255brightness
-  /*if (currentLuxLevel < 400) */ analogWrite(BUTTONLED, map(currentLuxLevel, 0, 400, 50, 255)); //set the brightness of the LED to ~room brightness
-  //else                      analogWrite(BUTTONLED, map(currentLuxLevel, 0, 2000, 50, 255)); //set the brightness of the LED to ~room brightness
-  
-  static uint8_t xbeeLEDCount = 0;
-  //Blink XBee Button LED
-  if (xbeeLEDCount > 3) { //4 or greater
-    if (xbeeButtonLED) digitalWrite(XBEELED, LOW);        //turn off XBee Button LED
-    else               analogWrite(XBEELED, ledLuxLevel); //turn on XBBL to light level
-    xbeeLEDCount = 0;
-    xbeeButtonLED = !xbeeButtonLED;
-  }
-  else xbeeLEDCount++;
 
   //Laser strobe
-  //if (laser_pwr == 4)      { digitalWrite(LASEREN, LOW); /*digitalWrite(STAT2, HIGH);*/ digitalWrite(ONETHREE, HIGH); laser_pwr = 3; } //enable laser
-  //else if (laser_pwr == 3) { digitalWrite(LASEREN, HIGH); /*digitalWrite(STAT2, LOW);*/ digitalWrite(ONETHREE, LOW); laser_pwr = 4; } //disable laser
-  if (laser_pwr == 4) { //laser_pwr never hits 3
-    for (int val = 255; val > 0; val-=strobeKnockVal)  {analogWrite(LASEREN, val); delay(strobeStopVal);} delay(200); //brighten laser
-    for (int val = 0; val <= 255; val+=strobeKnockVal) {analogWrite(LASEREN, val); delay(strobeStopVal);} delay(100); //dim laser
-  }
+  if (laser_pwr == 4)      { digitalWrite(LASEREN, LOW); /*digitalWrite(STAT2, HIGH);*/ digitalWrite(ONETHREE, HIGH); laser_pwr = 3; } //enable laser
+  else if (laser_pwr == 3) { digitalWrite(LASEREN, HIGH); /*digitalWrite(STAT2, LOW);*/ digitalWrite(ONETHREE, LOW); laser_pwr = 4; } //disable laser
+  
   if (laser_pwr == 5) { laserBreathe(); }
+  
+  if (laser_pwr == 6) {
+    for (int16_t val = 255; val > 0; val-=strobeKnockVal)  {analogWrite(LASEREN, val); delay(strobeStopVal);} delay(200); //brighten laser
+    for (int16_t val = 0; val <= 255; val+=strobeKnockVal) {analogWrite(LASEREN, val); delay(strobeStopVal);} delay(100); //dim laser
+  }
+  
+  /*if (laser_pwr == 4) {
+    if (laserStrobeDir) { for (int val = 255; val > 0; val-=strobeKnockVal)  {analogWrite(LASEREN, val); delay(strobeStopVal);} delay(200); }//brighten laser
+    else                { for (int val = 0; val <= 255; val+=strobeKnockVal) {analogWrite(LASEREN, val); delay(strobeStopVal);} delay(100); } //dim laser
+    laserStrobeDir = !laserStrobeDir;
+  }*/
+//for reference, in the two 'for' statements above, 'val' must be of an 16-bit signed int type (rather than 8-bit)
+//because the Knock value will prevent the condition from ever becoming true (the value just wraps back and locks into an infinite loop)
 
 
 }
@@ -805,27 +810,16 @@ void mode4() //warning
     unsigned long previousWarnMillis = millis();
     //previousWarnMillis = millis();
     
-    //boolean curWarnScreen = true; //T = 1; F = 2
     static boolean curWarnScreen = true; //T = 1; F = 2
     
     if(debug_mode4) Serial.println("WarnScreen1");
     interrupts();
     while(warningShown == 1)
     {
-      //interrupts(); //moved up
-      if (curWarnScreen)
-      {
-        LCDsetPosition(1,1); myLCD.print(F("WARNING: Do not use this robot for scien-tific purposes, as"));
-        LCDsetPosition(4,1); myLCD.print(F("Press to continue..."));
-        //delay(100); 
-      }
-      else //if (!(curWarnScreen)) //
-      {
-        LCDsetPosition(1,1); myLCD.print(F("it may sometimes    "));
-        LCDsetPosition(2,1); myLCD.print(F("yield inaccurate or imprecise data.     "));
-        //delay(100); 
-      }
-
+      LCDsetPosition(1,1); 
+      if (curWarnScreen) { myLCD.print(F("WARNING: Do not use this robot for scien-tific purposes, as Press to continue...")); }
+      else               { myLCD.print(F("it may sometimes    yield inaccurate or imprecise data.     ")); }
+      
       if (millis() - previousWarnMillis > 2500)
       {
         if(debug_mode4) Serial.println("WarnScreenChange");
@@ -833,24 +827,7 @@ void mode4() //warning
         previousWarnMillis = millis();
       }
     }
-
-    /*
-    while(warningShown == 1)
-     {
-     interrupts();
-     LCDsetPosition(1,1);
-     myLCD.print("WARNING: Do not use this device for scie-ntific purposes, as");
-     LCDsetPosition(4,1);
-     myLCD.print("Press to continue...");
-     delay(2500);
-     
-     LCDsetPosition(1,1);
-     myLCD.print("it may sometimes    ");
-     LCDsetPosition(2,1);
-     myLCD.print("yield inaccurate or imprecise data.     ");
-     delay(2500);
-     }
-     */
+    
   }
 }
 
@@ -858,7 +835,6 @@ void mode4() //warning
 void interrupt0()
 {
   //debounce protection
-  //interrupt_time = millis();
   // If interrupts come faster than 200ms, assume it's a bounce and ignore
   if (millis() - last_interrupt_time > 200) 
   {
@@ -868,32 +844,12 @@ void interrupt0()
     digitalWrite(MCUONLED, LOW); 
     statusLight(0,0,1); //(s1)(s2)[err]
     //digitalWrite(BUTTONLED, LOW);
-    analogWrite(BUTTONLED, ledLuxLevel);
-
-
-
-
-  /* //option 1 (case + if)
-  switch(warningShown)
-  {
-    case -1: mode = 4; if(debug_int0)Serial.println("switchToWarn"); break; //send to warning screen when loop() will call mode4();
-    case 0: mode = 4; if(debug_int0)Serial.println("switchToWarn"); break; //send to warning screen when loop() will call mode4();
-    case 1: mode = 1; warningShown = 2; prevMode = 0; initSet = 0; if(debug_int0)Serial.println("switchWarnShown1"); break; //prevmode = 4; ##prevMode would be 0, since "mode 4" isn't really a mode 
-    case 2:
-      if(mode == 1)      { mode = 2; if(debug_int0)Serial.println("switchto2"); }
-      else if(mode == 0) { mode = 1; if(debug_int0)Serial.println("switchto1"); }
-      else if(mode == 2) { mode = 3; if(debug_int0)Serial.println("switchto3");  }
-      else if(mode == 3) { mode = 0; if(debug_int0)Serial.println("switchto0");  }
-      else               { mode = 0; if(debug_int0)Serial.println("switchfrom_elseto0"); } 
-      break;
-  }*/
   
-  //option 2 (onlycase)
   switch(warningShown)
   {
     case -1: mode = 4; if(debug_int0)Serial.println("switchToWarn"); break; //send to warning screen when loop() will call mode4();
-    case 0: mode = 4; if(debug_int0)Serial.println("switchToWarn"); break; //send to warning screen when loop() will call mode4();
-    case 1: mode = 1; warningShown = 2; prevMode = 0; initSet = 0; if(debug_int0)Serial.println("switchWarnShown1"); break; //prevmode = 4; ##prevMode would be 0, since "mode 4" isn't really a mode 
+    case 0:  mode = 4; if(debug_int0)Serial.println("switchToWarn"); break; //send to warning screen when loop() will call mode4();
+    case 1:  mode = 1; warningShown = 2; prevMode = 0; initSet = 0; if(debug_int0)Serial.println("switchWarnShown1"); break; //prevmode = 4; ##prevMode would be 0, since "mode 4" isn't really a mode 
     case 2:
       switch(mode)
       {
@@ -904,29 +860,17 @@ void interrupt0()
         default: mode = 0; if(debug_int0)Serial.println("switchfrom_elseto0");
       }
       break;
-      default: statusLight(0,0,1); if(debug_int0)Serial.println("warning err"); //xbee.println("err: true-ing out"); while(1);
+      default: statusLight(0,0,1); if(debug_int0) {Serial.println("warning err"); xbee.println("err: true-ing out"); while(1);}
   }
-    
-    
-    /* //option 3 (only if) [original*]
-    if (warningShown == 0 || warningShown == -1) //if just pressed for very first time
-    { mode = 4; if(debug_int0)Serial.println("switchToWarn"); } //send to warning screen when loop() will call mode4();
-    else if (warningShown == 1) //if TOC just confirmed/accepted [from warning screen]
-    { mode = 1; warningShown = 2; prevMode = 0; initSet = 0; if(debug_int0)Serial.println("switchWarnShown1"); } //prevmode = 4; ##prevMode would be 0, since "mode 4" isn't really a mode
-    else if(mode == 1 && warningShown == 2) { mode = 2; if(debug_int0)Serial.println("switchto2"); }
-    else if(mode == 0 && warningShown == 2) { mode = 1; if(debug_int0)Serial.println("switchto1"); }
-    else if(mode == 2 && warningShown == 2) { mode = 3; if(debug_int0)Serial.println("switchto3");  }
-    else if(mode == 3 && warningShown == 2) { mode = 0; if(debug_int0)Serial.println("switchto0");  }
-    else                                    { mode = 0; if(debug_int0)Serial.println("switchfrom_elseto0"); } 
-    */
     
     initSet = 0;
     //digitalWrite(BUTTONLED, HIGH);
     //Serial.print("Interrupt Set Mode: "); //  Serial.println(mode);
-    analogWrite(BUTTONLED, ledLuxLevel); digitalWrite(MCUONLED, HIGH); digitalWrite(ERRORLED, LOW);
+    //analogWrite(BUTTONLED, ledLuxLevel); 
+    digitalWrite(MCUONLED, HIGH); digitalWrite(ERRORLED, LOW);
 
-  }/*
-  else //THIS CANNOT EXIST UNLESS ACTUALLY PLUGGED INTO USB, CAUSES BUGS OTHERWISE
+  }
+/*else //THIS CANNOT EXIST UNLESS ACTUALLY PLUGGED INTO USB, CAUSES BUGS OTHERWISE
    {
    if(debug_int0)Serial.println("buttonPressRegistered");
    }
@@ -936,8 +880,8 @@ void interrupt0()
 
 
 void interrupt1() {
+  //debounce protection
   // If interrupts come faster than 200ms, assume it's a bounce and ignore
-  //interrupt_time = millis(); if (interrupt_time - last_interrupt_time > 200)
   if (millis() - last_interrupt_time > 200) 
   {
     noInterrupts();
@@ -946,40 +890,33 @@ void interrupt1() {
     digitalWrite(STAT1, HIGH); digitalWrite(ERRORLED, HIGH); digitalWrite(MCUONLED, LOW); 
     //statusLightIntOne(1,1,1);
     //analogWrite(XBEELED, ledLuxLevel); //XBee Button LED
-    //analogWrite(BUTTONLED, ledLuxLevel);
-    //digitalWrite(BUTTONLED, LOW);
+    //analogWrite(BUTTONLED, ledLuxLevel); OR //digitalWrite(BUTTONLED, LOW); //why did we have these...leftovers from CB?
 
     if (mode == 3) {
       //uint8_t setLaserPower; //for eeprom?
+      
       switch(laser_pwr)
       {
-        case 0:  digitalWrite(LASEREN, LOW);    laser_pwr = 255; break; //enable laser, now at full brightness
-        case 255: analogWrite(LASEREN, 127);    laser_pwr = 127; break; //now at 127 brightness
-        case 127: analogWrite(LASEREN, 210);    laser_pwr = 45;  break; //now at 45 brightness
-        case 45: digitalWrite(LASEREN, LOW);    laser_pwr = 4;   break; //now strobing
-    case (4||3): digitalWrite(LASEREN, HIGH);   laser_pwr = 5;   break; //now breathing
-        case 5:  digitalWrite(LASEREN, HIGH);   laser_pwr = 0;   break; //turn off laser, now off
-      //case 3:  digitalWrite(LASEREN, HIGH); /*digitalWrite(STAT2, LOW);*/ digitalWrite(ONETHREE, LOW); laser_pwr = 0; break; //turn off laser, now off
+        case 0:  digitalWrite(LASEREN, LOW);     laser_pwr = 255; break; //enable laser, now at full brightness
+        case 255: analogWrite(LASEREN, 255-127); laser_pwr = 127; break; //now at 127 brightness
+        case 127: analogWrite(LASEREN, 255-45);  laser_pwr = 45;  break; //now at 45 brightness
+        case 45: digitalWrite(LASEREN, LOW);     laser_pwr = 4;   break; //now strobing
+        case 5:  digitalWrite(LASEREN, HIGH);    laser_pwr = 6;          //now fading [WAIT REQUIRED -> FOR]
+                 LCDsetPosition(4,14); myLCD.print(F("   WAIT")); break;
+        case 6:  digitalWrite(LASEREN, HIGH);    laser_pwr = 0;          //turn off laser, now off [WAIT REQUIRED -> FOR]
+                 LCDsetPosition(4,14); myLCD.print(F("   WAIT")); break; 
+        case 4:  digitalWrite(LASEREN, HIGH);    laser_pwr = 5;   break; //now breathing
+        case 3:  digitalWrite(LASEREN, HIGH);    laser_pwr = 5;   break; //now breathing 
+               //case 4 and 3 cannot be combined with an || statement; it won't work.
         default:
-          digitalWrite(LASEREN, HIGH); /*digitalWrite(STAT2, LOW);*/ digitalWrite(ONETHREE, LOW); laser_pwr = 0; //disable laser due to var error
-          //if(debug_verbose) xbee.println(F("Laser Var Error"));
+          digitalWrite(LASEREN, HIGH); /*digitalWrite(STAT2, LOW);*/ digitalWrite(ONETHREE, LOW); 
+          laser_pwr = 0; //disable laser due to var error //THIS OCCURS AFTER BREATHE ALWAYS
+          if(debug_verbose) xbee.println(F("Laser Var Error"));
       }
-      //if (laser_pwr > 0 && laser_pwr < 10) /*digitalWrite(STAT2, HIGH);*/ digitalWrite(ONETHREE, HIGH); //effectively, if laser is on (but we don't deal with strobing here) 
-      if (laser_pwr > 5) /*digitalWrite(STAT2, HIGH);*/ digitalWrite(ONETHREE, HIGH); //effectively, if laser is on (but we don't deal with strobing here) 
-      /*
-      if (laser_pwr == 0)        { digitalWrite(LASEREN, LOW); laser_pwr = 255; } //enable laser, now at full brightness
-      else if (laser_pwr == 255) { analogWrite(LASEREN, 127);  laser_pwr = 127; } //now at 127 brightness
-      else if (laser_pwr == 127) { analogWrite(LASEREN, 77);   laser_pwr = 77; }  //now at 77 brightness
-      else if (laser_pwr == 77)  { analogWrite(LASEREN, 40);   laser_pwr = 40; }  //now at 40 brightness
-      else if (laser_pwr == 40)  { digitalWrite(LASEREN, LOW); laser_pwr = 4; }   //now strobing
-      else if (laser_pwr == 4 || //4 means strobe on, 3 strobe off, for this
-               laser_pwr == 3)   { digitalWrite(LASEREN, HIGH); digitalWrite(STAT2, LOW); digitalWrite(ONETHREE, LOW); laser_pwr = 0; } //turn off laser, now off
-      else
-      {
-        digitalWrite(LASEREN, HIGH); digitalWrite(STAT2, LOW); digitalWrite(ONETHREE, LOW); laser_pwr = 0; //disable laser
-        if(debug_verbose) xbee.println(F("Laser Var Error"));
-      }*/
       
+      if (laser_pwr > 5) { /*digitalWrite(STAT2, HIGH);*/ digitalWrite(ONETHREE, HIGH); } //effectively, if laser is on (but we don't deal with strobing here) 
+      
+      if(pcbVersion==2.0){if(laser_pwr>0){digitalWrite(STAT2, HIGH); } else digitalWrite(STAT2, LOW);} //effectively, if laser is on (but we don't deal with strobing here) 
     }
 
     else { //mode != 3
@@ -1000,9 +937,7 @@ void interrupt1() {
 }
 
 
-//void buzz(int targetPin, long frequency, long length) {
-//void buzz(uint8_t targetPin, long frequency, long length) {
-void buzz(uint8_t targetPin, unsigned int frequency, unsigned int length) {
+void buzz(uint8_t targetPin, uint16_t frequency, uint16_t length) {
   long delayValue = 1000000/frequency/2; // calculate the delay value between transitions
   //## 1 second's worth of microseconds, divided by the frequency, then split in half since
   //## there are two phases to each cycle
@@ -1037,7 +972,10 @@ String genCurTimeMDY() {
   genTimeMDY += "/";
   genTimeMDY += day();
   genTimeMDY += "/";
-  genTimeMDY += year();
+  if( ( (hourFormat12() > 9) && (month() > 9 || day() > 9) ) ||
+        (month() > 9 && day() > 9) )
+    {genTimeMDY += (year()-2000);} //for LCD spacing issues
+  else {genTimeMDY += (year());}
   return genTimeMDY;
 }
 
@@ -1101,12 +1039,24 @@ void printTSLError(byte error) // If there's an TSL I2C error, this function wil
 
 void printGlobals() {
   if(debug_setup) Serial.println("Global Variables:");
-  if(debug_setup) Serial.print("Global Delay: ");  if(debug_setup) Serial.print(globalDelay);
+  if(debug_setup) Serial.print("Global Delay: ");     if(debug_setup) Serial.print(globalDelay);
   if(debug_setup) Serial.print(" | LED Lux Level: "); if(debug_setup) Serial.print(ledLuxLevel);
   if(debug_setup) Serial.print(" | Switch Count: ");  if(debug_setup) Serial.print(switchCount);
   if(debug_setup) Serial.print(" | Power Save: ");    if(debug_setup) Serial.println(powerSaveEnabled);
 }
 
+//const uint8_t pulseValue[] PROGMEM = 
+const uint8_t pulseValue[] = {1, 1, 2, 3, 5, 8, 11, 15, 20, 25, 30, 36, 43, 49, 56, 64, 72, 80, 88, 
+                          97, 105, 114, 123, 132, 141, 150, 158, 167, 175, 183, 191, 199, 206, 212, 
+                          219, 225, 230, 235, 240, 244, 247, 250, 252, 253, 254, 255, 254, 253, 
+                          252, 250, 247, 244, 240, 235, 230, 225, 219, 212, 206, 199, 191, 183, 175, 
+                          167, 158, 150, 141, 132, 123, 114, 105, 97, 88, 80, 72, 64, 56, 49, 43, 
+                          36, 30, 25, 20, 15, 11, 8, 5, 3, 2, 1, 0 };
+void laserBreathe()
+{
+  for(uint8_t i=0; i < sizeof(pulseValue); i++) { analogWrite(LASEREN, abs(255-pulseValue[i])); delay(30); }
+  //for(uint8_t i=0; i < sizeof(pulseValue); i++) { analogWrite(LASEREN, abs(255-(pgm_read_word_near(pulseValue + i)))); delay(30); }
+}
 
 
 double getInternalTemp(void)
@@ -1120,14 +1070,20 @@ double getInternalTemp(void)
   // Need to recalibrate 324.31...
   return ((double)(iADC - 324.31 ) / 1.22); //celsius
 }
+
 double getInternalTemp(char format) {
-  if (format == 'C' || format == 'c'){ return getInternalTemp(); }
-  else if (format == 'F' || format == 'f') { return (((getInternalTemp() * 9.0)/ 5.0) + 32.0); }
+  if (format == 'F' || format == 'f') { return (((getInternalTemp() * 9.0)/ 5.0) + 32.0); }
+  else if (format == 'C' || format == 'c'){ return getInternalTemp(); }
   else return getInternalTemp();
 }
 
 //double getInternalTempF(void) { return (((getInternalTemp() * 9.0)/ 5.0) + 32.0); } //[DEPRECATED]
 
+
+double map_double(double x, double in_min, double in_max, double out_min, double out_max)
+{
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
 
 
 
