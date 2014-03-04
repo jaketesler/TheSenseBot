@@ -7,11 +7,11 @@
 #endif
 
 
-char chars[4] = {'|','/','-','\\'};
+char cycleChars[4] = {'|','/','-','\\'};
 
 //#include "serLCD.h"
 
-void cyclone(int numTimes, double length, int line, int col) { //each cyclone is one second usually
+void cyclone(uint8_t numTimes, double length, uint8_t line, uint8_t col) { //each cyclone is one second usually
   //int cycleState = 0;
   //length in ms
   
@@ -21,7 +21,7 @@ void cyclone(int numTimes, double length, int line, int col) { //each cyclone is
   {
     for(int curChar = 0; curChar <= 3; curChar++)
     {
-      LCDsetPosition(line, col); myLCD.print(chars[curChar]); delay(length);
+      LCDsetPosition(line, col); myLCD.print(cycleChars[curChar]); delay(length);
     }
     
     /*
@@ -37,27 +37,11 @@ void cyclone(int numTimes, double length, int line, int col) { //each cyclone is
   
 }
 
-void cyclone(int numTimes, int line, int col) { cyclone(numTimes, (double)1000, line, col); }
-
-void laserBreathe()
-{
-  uint8_t pulseValue[] = {1, 1, 2, 3, 5, 8, 11, 15, 20, 25, 30, 36, 43, 49, 56, 64, 72, 80, 88, 
-                          97, 105, 114, 123, 132, 141, 150, 158, 167, 175, 183, 191, 199, 206, 212, 
-                          219, 225, 230, 235, 240, 244, 247, 250, 252, 253, 254, 255, 254, 253, 
-                          252, 250, 247, 244, 240, 235, 230, 225, 219, 212, 206, 199, 191, 183, 175, 
-                          167, 158, 150, 141, 132, 123, 114, 105, 97, 88, 80, 72, 64, 56, 49, 43, 
-                          36, 30, 25, 20, 15, 11, 8, 5, 3, 2, 1, 0 };
-  for (int i = 0; i < sizeof(pulseValue); i++)
-  {
-    analogWrite(LASEREN, (abs(255-(pulseValue[i]))));
-    delay(30);
-  }
-}
+void cyclone(uint8_t numTimes, uint8_t line, uint8_t col) { cyclone(numTimes, (double)1000, line, col); }
 
 
-
-signed int animStep = -17; //tracker for confusedAnimation()
-static signed int initAnimStep = -17;
+int8_t animStep = -17; //tracker for confusedAnimation()
+static int8_t initAnimStep = -17;
 
 void confusedAnimation(int curStep)
 {
