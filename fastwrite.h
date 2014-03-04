@@ -1,6 +1,6 @@
 //http://skpang.co.uk/blog/archives/323
 #define PD2 2
-int outPin = 2;                 // Use digital pin 2 as output
+uint8_t outPin = 2;                 // Use digital pin 2 as output
 
 void setup()
 {
