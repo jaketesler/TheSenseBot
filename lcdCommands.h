@@ -1,27 +1,5 @@
 /***********************************************************************
-SerLCD Example Code
-SparkFun Electronics 
-Joel Bartlett
-December 20, 2012 
-
-Modified by Jake Tesler for the COM-BAT System Project, 2012-2013
-Modified by Jake Tesler for the SenseBot Project, 2014-
-
-This code uses the information presented in the SerLCD Datasheet 
-to create an Arduino example using the SerLCD from SparkFun Electonics. 
-Each of the SerLCD's capabilities is broken up into seperate functions
-within the sketch. Simply call each function with the correct parameters 
-to get the desired result form the LCD screen. 
-
-This code was devoloped for the Arduino IDE v102
-
-To use, connect the following pins
-VDD -> 5V
-GND -> GND
-LCD RX -> Arduino TX (pin 4)
-
-***Don't forgect to disconnect the LCD's RX pin from the TX pin of 
-the Arduino's UART line while programming!***
+This source code cites "SerLCD Example Code", Joel Bartlett, SparkFun Electronics. 
 
 "THE BEER-WARE LICENSE"
 As long as you retain this notice you can do whatever you want with this stuff. 
@@ -38,7 +16,7 @@ If we meet some day, and you think this stuff is worth it, you can buy me a beer
 #define LCDPIN A2
 #endif
 
-SendOnlySoftwareSerial myLCD(LCDPIN); //5 RX, 4 TX* ##CUSTOM
+SendOnlySoftwareSerial myLCD(LCDPIN); //4 TX* ##CUSTOM
 
 //-------------------------------------------------------------------------------------------
 void LCDclearScreen()
@@ -47,44 +25,46 @@ void LCDclearScreen()
   myLCD.write(0x01); 
 }
 //-------------------------------------------------------------------------------------------
-void LCDclearDisplay() { LCDclearScreen(); } //deprecated: please use LCDclearScreen()
+void LCDclearDisplay() { LCDclearScreen(); } //deprecated: use LCDclearScreen()
 //-------------------------------------------------------------------------------------------
-void LCDsetPosition(int line, int pos) //set position at line, position (1-4,1-20);
+void LCDsetPosition(uint8_t line, uint8_t pos) //set position at line, position (1-4,1-20);
 {
-  if (pos > 0 && pos <= 20) {pos--;}   //if pos > than min (1) change to index, 1 --> 0, etc. (human --> index)
-  else {pos=0;} //else reset to 0
-
-  if (line > 4 || line < 1) {line=1;} //if lines outside max reset to 0
-//else if (line == 1); //normal index
-  else if (line == 2) {pos += 64;}
+  //if (pos > 0 && pos <= 20) {pos--;}   //if pos > than min (1) change to index, 1 --> 0, etc. (human --> index)
+  //else {pos=0;} //else reset to 0
+  if (pos > 20 || pos < 0) {pos=0;}
+  
+//if      (line == 1); //normal index
+  if      (line == 2) {pos += 64;}
   else if (line == 3) {pos += 20;}
   else if (line == 4) {pos += 84;}
+  else if (line > 4 || line < 1) {line=1;}
   
-  pos += 128;
+ 
+  pos += 127; //should be 128, but we removed the human-computer index and subtracted here instead.
   myLCD.write(0xFE); myLCD.write(pos); //command flag + write position
 }
 //-------------------------------------------------------------------------------------------
-void LCDclearLine(int line, int pos) //write whitespace starting at position until end of line
+void LCDclearLine(uint8_t line, uint8_t pos) //write whitespace starting at position until end of line
 {
   LCDsetPosition(line,pos); 
-  for(int count = pos; count < 21; count++) { myLCD.print(" "); } //write whitespace until end of line
+  for(uint8_t count = pos; count < 21; count++) { myLCD.print(" "); } //write whitespace until end of line
 }
 //-------------------------------------------------------------------------------------------
-void LCDclearLine(int line) { LCDclearLine(line, 1); } //write whitespace until end of line
+void LCDclearLine(uint8_t line) { LCDclearLine(line, 1); } //write whitespace until end of line
 //-------------------------------------------------------------------------------------------
 void LCDturnDisplayOn() //this turns the display back ON
 {
   myLCD.write(0xFE); myLCD.write(12); // 0x0C
 }
 //-------------------------------------------------------------------------------------------
-void LCDbrightness(int brightness) { //this function takes an int between 0-255 and turns the backlight on accordingly
+void LCDbrightness(uint8_t brightness) { //this function takes an int between 0-255 and turns the backlight on accordingly
 // 0 = OFF, 255 = Fully ON, everything in-between = varied brightness [out of possible 30 different brightness levels]
   myLCD.write(0x7C); myLCD.write(map(brightness, 0, 255, 128, 157)); //NOTE THE DIFFERENT COMMAND FLAG = 124 dec 
 }
 //-------------------------------------------------------------------------------------------
-void LCDbacklight(int lvl) //this function takes an int between 128-157 and turns the backlight on accordingly
+void LCDbacklight(uint8_t lvl) //this function takes an int between 128-157 and turns the backlight on accordingly
 {
-  myLCD.write(0x7C); myLCD.write(lvl);  // any value between 128 and 157 or 0x80 and 0x9D
+  if (lvl<=157 && lvl>=128) {myLCD.write(0x7C); myLCD.write(lvl);}  // any value between 128 and 157 or 0x80 and 0x9D
 }
 //-------------------------------------------------------------------------------------------
 void ChangeSerialLCDSplashScreen(String line1, String line2) { //change the splash screen of the LCD panel
@@ -180,7 +160,7 @@ void LCDcounter()
   }
 }
 //-------------------------------------------------------------------------------------------
-void LCDbacklight()
+void LCDbacklightFade()
 {
   //this function shows the different brightnesses to which the backlight can be set 
   LCDclearScreen();
