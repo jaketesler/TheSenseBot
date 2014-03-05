@@ -33,13 +33,15 @@
  *   [STAT1] (STAT2) [ERROR] {*}: Out-of-range Sensor error
  *   [STAT1] *STAT2* [ERROR] {3}: Interrupt 1 execution error
  *  
+ *  TO-DO: Implement XBee transmission by rewriting lines rather than re-printing prefixes
+ * 
  * "THE BEER-WARE LICENSE"
  * As long as you retain this notice you can do whatever you want with this stuff. 
  * If we meet some day, and you think this stuff is worth it, you can buy me a beer.
  *
  * *************************************************************************
  */
-const String sbVersion = "v0.8.1r2";
+const String sbVersion = "v0.8.3r1";
 #define PCBVERSION1.0
 //#define PCBVERSION2.0
 const double pcbVersion = 1.0;
@@ -141,7 +143,7 @@ volatile unsigned long last_interrupt_time = 0; //int0
 volatile uint8_t laser_pwr = 0;
 
 //xbee
-volatile boolean xbeeSleep = 1; //start XBee Sleeping
+volatile boolean xbeeSleep = 0; //start XBee not Sleeping
 boolean xbeeButtonLED = LOW;
 
 //RTC
@@ -158,6 +160,9 @@ unsigned int msInt;  // Integration ("shutter") time in milliseconds
 //how many cycles until the screen rewrites content
 uint8_t redrawCounter;
 const uint8_t redrawMax = 10;
+
+volatile boolean xbeePrintMode = 1; //this is to see if we have printed status info to the XBee for mode switching
+volatile boolean xbeePrintInfo = 0;
 
 //Laser strobe delay
 //balance these two
@@ -232,26 +237,24 @@ void setup()
   if(eeprom_config) {eeprom_set(); while(1);}
   
   myLCD.begin(9600);                          //initialize LCD at 9600 baud
-  xbee.begin(9600); xbee.println("boot");   //initialize XBee at 115200 baud
+  xbee.begin(9600); delay(50); xbee.println(""); //xbee.println("boot");  //initialize XBee at 9600 baud
   Wire.begin(); //delay(5);                   //initialize I2C
   fuelGauge.reset(); fuelGauge.quickStart();                            if(debug_setup) Serial.println("fuel.done");         //initialize LiPo capacity sensor
   altbar.begin(); altbarStarter();                                      if(debug_setup) Serial.println("AltSnsr.done");      //initialize MPL3115A2
   lsm.init(); lsm.enableDefault();                                      if(debug_setup) Serial.println("ACM.done");          //initialize LSM303D
   calHumid.calibrate(H_SLOPE, H_OFFSET);                                if(debug_setup) Serial.println("Humid.done");        //initialize/calibrate HIH4030
   tsl.begin(); tsl.setPowerUp(); tsl.setTiming(tslGain,tslTime,msInt);  if(debug_setup) Serial.println("LuxSnsr.done");      //initialize TSL2561
-  setSyncProvider(RTC.get);                                             if(debug_setup) Serial.print("Get RTC...");          //the function to get the time from the RTC
-  if (timeStatus() != timeSet) { timeOn = 0;                            if(debug_setup) Serial.println("No RTC"); }          //initialize or kill RTC           
-  else                         { timeOn = 1;                            if(debug_setup) Serial.println("RTC set"); }         //we are 1-offing this
- if(debug_setup && !tsl.begin()) { //There was a problem detecting the TSL2561 ... check the connections
+  //setSyncProvider(RTC.get);                                             if(debug_setup) Serial.print("Get RTC...");          //the function to get the time from the RTC
+  //if (timeStatus() != timeSet) { timeOn = 0;                            if(debug_setup) Serial.println("No RTC"); }          //initialize or kill RTC           
+  //else                         { timeOn = 1;                            if(debug_setup) Serial.println("RTC set"); }         //we are 1-offing this
+  if(debug_setup && !tsl.begin()) { //There was a problem detecting the TSL2561 ... check the connections
     xbee.print(F("Ooops, no TSL2561 detected ... Check your wiring or I2C ADDR!"));
     statusLight(1,0,1); delay(10000); }
   
-  xbee.println("XBee Sleep..."); if(debug_setup) Serial.println(F("XBee Sleep..."));
-  //digitalWrite(XBEESLEEPD, xbeeSleep); //start XBee sleep
-  digitalWrite(XBEESLEEPD, LOW); //start XBee sleep //#flip this for product version
+  //xbee.println("XBee Sleep..."); if(debug_setup) Serial.println(F("XBee Sleep..."));
+  digitalWrite(XBEESLEEPD, xbeeSleep); //start or stop XBee sleep
   analogWrite(XBEELED, ledLuxLevel); xbeeButtonLED = HIGH; //turn on XBee Button LED
-  xbee.println(F("done. If you're reading this, you're not on wireless (or something broke)."));
-  if(debug_setup) Serial.println(F("done. If you're reading this, you're not on wireless (or something broke)."));
+  
 
   //delay(500);
 /*digitalWrite(MCUONLED, LOW); delay(500);
@@ -260,17 +263,21 @@ void setup()
   digitalWrite(STAT1, LOW);
 
   //LCDbrightness(255); //increases binary size a lot
-  LCDturnDisplayOn(); LCDclearScreen(); //clears LCD
+  //LCDturnDisplayOn(); 
+  LCDclearScreen(); //clears LCD
   LCDsetPosition(1,1); myLCD.print(F("  Jim The SenseBot"));  xbee.println(F("Jim The SenseBot")); //splash
-  LCDsetPosition(2,1); myLCD.print(F("Built by Jake Tesler")); //xbee.println(F("Built by Jake Tesler"));
+  LCDsetPosition(2,1); myLCD.print(F("Built by Jake Tesler")); xbee.println(F("Built by Jake Tesler"));
+  //xbee.println("[To sleep, press red button on the back.]"); 
   LCDsetPosition(3,1); myLCD.print(sbVersion); LCDsetPosition(3,11); myLCD.print(F("Build: ")); myLCD.print(pcbVersion);
-  LCDsetPosition(4,1); myLCD.print(F("Loading"));
+  LCDsetPosition(4,1); myLCD.print(F("Loading")); xbee.print(F("Loading"));
   for (uint8_t itime = 0; itime <= 2; itime++)
   {
     LCDsetPosition(4,8); myLCD.print("   "); delay(250);
     LCDsetPosition(4,8);
+    xbee.print(".");
     for(uint8_t pixelDot = 1; pixelDot < 4; pixelDot++) { myLCD.print("."); delay(250); }
   }
+  xbee.println("Done!"); //xbee.println("");
   //cyclone(3, 1000, 4, 12);
 
 
@@ -314,11 +321,13 @@ void loop() {
     Serial.print("Free Mem:" ); Serial.print(freeRam()); Serial.println(" of 2048"); 
     Serial.println();
   }
-  if (debug_verbose) { xbee.print(F("Free Mem: ")); xbee.print(freeRam()); xbee.println(F("/2048")); }
+  
   
   //redraw protocol control
   if(redrawCounter > redrawMax) redrawCounter=0;
   else redrawCounter++;
+  
+  float battLevel = fuelGauge.stateOfCharge();
   
   if (initSet == 0) //if we just switched modes, execute these "housekeeping" commands
   {
@@ -329,8 +338,35 @@ void loop() {
                       mode = 0; if(debug_loop) Serial.println("ModeSetTo0"); }
     digitalWrite(MCUONLED, HIGH);
     redrawCounter = 0;
+    if(mode == 0) { //we can disable this if we want to add RTC for every mode
+      if (!timeOn) {
+        setSyncProvider(RTC.get);                  if(debug_setup) Serial.print("Get RTC...");   //the function to get the time from the RTC
+        if (timeStatus() != timeSet) { timeOn = 0; if(debug_setup) Serial.println("No RTC"); }   //initialize or permanently kill RTC           
+        else                         { timeOn = 1; if(debug_setup) Serial.println("RTC set"); }
+      } 
+      if(timeOn) { //display time
+        time_t t = processSyncMessage();
+        if (t != 0) { RTC.set(t); setTime(t); } // set the RTC and the system time to the received value
+      }
+    }
+    
   }
   else { digitalWrite(MCUONLED, LOW); }
+
+  //stuff for xbee initialization, so it only happens once
+    if(xbeePrintInfo) {
+      xbeePrintInfo = 0;
+      if(timeOn) { //display time
+        String genCurTimeMDYStr = genCurTimeMDY();
+        String genCurTimeHMSStr = genCurTimeHMS();
+        xbee.println(genCurTimeMDYStr+ " " + genCurTimeHMSStr);
+      }
+      if (debug_verbose) { xbee.print(F("Free Mem: ")); xbee.print(freeRam()); xbee.println(F("/2048")); } //memory
+      if (battLevel < 255 && battLevel > -0.01) { xbee.print("Battery: "); xbee.print(battLevel,1); xbee.println("%"); } //battery
+      else if (battLevel >= 255)                { xbee.println(F("Batt Sensor Error")); }
+      else if (battLevel <= -0.01)              { xbee.println(F("Batt Low Err")); }
+      xbee.println("");
+    }
 
   //set title bar...mode titles cannot be longer than 14char
   /*if (laser_pwr > 0) { LCDsetPosition(1,13); myLCD.print("L"); }
@@ -339,35 +375,20 @@ void loop() {
 
 
   //GLOBAL BATTERY STAT
-  float battLevel = fuelGauge.stateOfCharge();
   if(debug_loop){ Serial.print("global batt "); Serial.println(battLevel); }
   LCDsetPosition(1,15); 
-
-/*  if (battLevel < 100 && battLevel >= 10) //if normal, between [10] and (100)
-  {
-    myLCD.print("B"); xbee.print("B");//batt logo;
-    myLCD.print(battLevel,1); xbee.print(battLevel,1); //[,1]=.1 (include decimal)
-    LCDsetPosition(1,20); myLCD.print("%"); xbee.println("%");
-  }
-  else if (battLevel < 10 && battLevel > -0.01) //if normal, between (10) and (-0.01)
-  {
-    myLCD.print("B0"); //batt logo;
-    myLCD.print(battLevel,1); xbee.print(battLevel,1); //16+1 for B"zero" //[,1]=.1 (include decimal)
-    LCDsetPosition(1,20); myLCD.print("%"); xbee.println("%");
-  }*/
-  
   if (battLevel < 100 && battLevel > -0.01) //if normal
   {
-    myLCD.print("B"); xbee.print("B"); //batt logo;
+    myLCD.print("B"); //batt logo;
     if(battLevel < 10) myLCD.print("0"); //prefix zero for battLevel double digits
-    myLCD.print(battLevel,1); xbee.print(battLevel,1); //[,1]=.1 (include decimal)
-    /*LCDsetPosition(1,20);*/ myLCD.print("%"); xbee.println("%");
+    myLCD.print(battLevel,1); //[,1]=.1 (include decimal)
+    /*LCDsetPosition(1,20);*/ myLCD.print("%");
   }
   else if (battLevel >= 100 && 
-           battLevel < 255)    { myLCD.print("B FULL"); xbee.println("Battery Full"); }
-  else if (battLevel >= 255)   { myLCD.print("PW_ERR"); xbee.println(F("Power Error")); digitalWrite(ERRORLED, HIGH); }
-  else if (battLevel <= -0.01) { myLCD.print("PW_LOW"); xbee.println(F("Batt Low Err")); digitalWrite(ERRORLED, HIGH); }
-  else                         { myLCD.print("B_SNSR"); xbee.println(F("Batt Sensor Err")); digitalWrite(ERRORLED, HIGH); }
+           battLevel < 255)    { myLCD.print("B FULL"); }
+  else if (battLevel >= 255)   { myLCD.print("PW_ERR"); digitalWrite(ERRORLED, HIGH); }
+  else if (battLevel <= -0.01) { myLCD.print("PW_LOW"); digitalWrite(ERRORLED, HIGH); }
+  else                         { myLCD.print("B_SNSR"); digitalWrite(ERRORLED, HIGH); }
 
   switch(mode)
     {
@@ -378,13 +399,6 @@ void loop() {
       case 4: mode4(); break;
       //default: mode0();
     }
-  /*
-  if (mode == 1) { mode1(); } //accelerometer/compass
-  if (mode == 2) { mode2(); } //atmospheric mode2
-  if (mode == 0) { mode0(); } //off-recharge0
-  if (mode == 3) { mode3(); } //lux/laser
-  if (mode == 4) { mode4(); } //initial science warning
-  */
  
   delay(globalDelay); //delay until next global event  
   //delay(EEPROM.read(globalDelayEEP));
@@ -408,13 +422,14 @@ void mode0() //off-recharge
       if(powerSaveEnabled) digitalWrite(PWSAVE, LOW); //turn on power save mode //###experimental
       
       LCDclearScreen(); //delay(50);
-      LCDsetPosition(1,1); myLCD.print("OFF/CHG"); xbee.println("Off / Charge Mode"); if(debug_mode0) Serial.println("OFF/CHG");
+      LCDsetPosition(1,1); myLCD.print("OFF/CHG"); if(debug_mode0) Serial.println("OFF/CHG");
+      if(xbeePrintMode) {
+        xbee.println("");
+        xbee.println("Off / Charge Mode"); 
+        xbeePrintMode = 0; 
+        xbeePrintInfo = 1;
+      } 
       //animStep = initAnimStep;
-      if(!timeOn) {
-        setSyncProvider(RTC.get);                  if(debug_setup) Serial.print("Get RTC...");   //the function to get the time from the RTC
-        if (timeStatus() != timeSet) { timeOn = 0; if(debug_setup) Serial.println("No RTC"); }   //initialize or permanently kill RTC           
-        else                         { timeOn = 1; if(debug_setup) Serial.println("RTC set"); }  //we are 1-offing this
-      }
 
 
       //delay(50);
@@ -446,13 +461,12 @@ void mode0() //off-recharge
 
     //display time
     if (timeOn) {
-      time_t t = processSyncMessage();
-      if (t != 0) { RTC.set(t); setTime(t); } // set the RTC and the system time to the received value
+      //time_t t = processSyncMessage();
+      //if (t != 0) { RTC.set(t); setTime(t); } // set the RTC and the system time to the received value
       String genCurTimeMDYStr = genCurTimeMDY();
       String genCurTimeHMSStr = genCurTimeHMS();
       if(debug_loop) { Serial.print(genCurTimeMDYStr); Serial.print(" "); Serial.println(genCurTimeHMSStr); }
-      //xbee.print(genCurTimeMDY()); xbee.print(" "); xbee.println(genCurTimeHMS()); 
-      xbee.println(genCurTimeMDYStr+ " " + genCurTimeHMSStr);
+      //xbee.println(genCurTimeMDYStr+ " " + genCurTimeHMSStr);
       LCDsetPosition(2,1); myLCD.print(genCurTimeMDYStr + " " + genCurTimeHMSStr);
     }
     
@@ -464,7 +478,7 @@ void mode0() //off-recharge
       boolean good = tsl.getLux(tslGain,msInt,data0,data1,currentLuxLevel); //do we have a good (in-bounds) value [this line also generates lux value]
       if(good) { LCDsetPosition(3,1); myLCD.print("Lux: "); myLCD.print(currentLuxLevel); }
     }
-    else { printTSLError(tsl.getError()); }
+    else if(debug_mode3) { printTSLError(tsl.getError()); }
     
     //3rd line Temperature
     if (altbar.readTempF() > -1765) {
@@ -476,9 +490,10 @@ void mode0() //off-recharge
 
     //Uptime reporting
     LCDsetPosition(4,1); myLCD.print("Up: ");
-    if(millis()/1000 >= 60) { myLCD.print((millis()/1000)/60,1); myLCD.print("m"); } //mins
-    myLCD.print(((millis()/1000) % 60),1); myLCD.print("s"); //secs
-    if(((millis()/1000) % 60) < 10) myLCD.print(" ");
+    long millis1k = millis()/1000;
+    if(millis1k >= 60) { myLCD.print((millis1k)/60,1); myLCD.print("m"); } //mins
+    myLCD.print(((millis1k) % 60),1); myLCD.print("s"); //secs
+    if(((millis1k) % 60) < 10) myLCD.print(" ");
     
     //internal temperature (v1)
     if(pcbVersion==1.0)      { LCDsetPosition(4,13); myLCD.print("I:"); myLCD.print(getInternalTemp('F'), 1); myLCD.write(0b11011111); myLCD.print("F"); }
@@ -509,6 +524,11 @@ void mode1() //Accelerometer/Compass
       LCDclearScreen();
       prevMode = 1; 
       LCDsetPosition(1,1); myLCD.print("Where Am I?"); if(debug_mode1)Serial.println("Where Am I?");
+      if(xbeePrintMode) {
+        xbee.println("Where Am I?"); 
+        xbeePrintMode = 0; 
+        //xbeePrintInfo = 1;
+      }
       LCDsetPosition(2,1); myLCD.print("Heading:");
     /*LCDsetPosition(3,1);  myLCD.print("A X: ");
       LCDsetPosition(3,8);  myLCD.print("Y: ");
@@ -539,19 +559,30 @@ void mode1() //Accelerometer/Compass
 
   lsm.read();
   
-/*LCDsetPosition(3,5);  myLCD.print(lsm.a.x);
-  LCDsetPosition(3,11); myLCD.print(lsm.a.y);
-  LCDsetPosition(3,18); myLCD.print(lsm.a.z);
-  LCDsetPosition(4,5);  myLCD.print(lsm.m.x);
-  LCDsetPosition(4,11); myLCD.print(lsm.m.y);
-  LCDsetPosition(4,18); myLCD.print(lsm.m.z);*/
+  /*LCDsetPosition(3,1);
+  String LineA = "AX:"; 
+  LineA += (lsm.a.x)/10;
+  LineA += " Y:";
+  LineA += (lsm.a.y)/10;
+  LineA += " Z:";
+  LineA += (lsm.a.z)/10;
+  myLCD.print(LineA);
+  LCDsetPosition(4,1); 
+  String LineM = "MX:";
+  LineM += (lsm.m.x)/10;
+  LineM += " Y:";
+  LineM += (lsm.m.y)/10;
+  LineM += " Z:";
+  LineM += (lsm.m.z)/10;
+  myLCD.print(LineM);*/
+  
   
   LCDsetPosition(3,1);
-  myLCD.print("A X:"); myLCD.print((lsm.a.x)/10);
+  myLCD.print("AX:"); myLCD.print((lsm.a.x)/10);
   myLCD.print(" Y:");   myLCD.print((lsm.a.y)/10);
   myLCD.print(" Z:");   myLCD.print((lsm.a.z)/10);
   LCDsetPosition(4,1);  
-  myLCD.print("M X:"); myLCD.print((lsm.m.x)/10);
+  myLCD.print("MX:"); myLCD.print((lsm.m.x)/10);
   myLCD.print(" Y:");   myLCD.print((lsm.m.y)/10);
   myLCD.print(" Z:");   myLCD.print((lsm.m.z)/10);
 }
@@ -579,6 +610,11 @@ void mode2() //Altitude
     //LCDclearScreen(); delay(50);
 
     LCDsetPosition(1,1); myLCD.print("Atmospheric");
+    if(xbeePrintMode) {
+        xbee.println("Atmospheric"); 
+        xbeePrintMode = 0; 
+        //xbeePrintInfo = 1;
+      } 
     LCDsetPosition(2,1); myLCD.print("Temp:");
     LCDsetPosition(3,1); myLCD.print("Pressure:");
     LCDclearLine(3,17);
@@ -666,6 +702,11 @@ void mode3() //
 
 
     LCDsetPosition(1,1);  myLCD.print(F("Light Sensors"));
+    if(xbeePrintMode) {
+        xbee.println("Light Sensors"); 
+        xbeePrintMode = 0; 
+        //xbeePrintInfo = 1;
+      } 
     LCDsetPosition(2,1);  myLCD.print(F("Lux:"));
     LCDsetPosition(3,1);  myLCD.print(F("Vis:"));
     LCDsetPosition(3,15); myLCD.print(F("Laser:"));
@@ -767,7 +808,7 @@ void mode3() //
   else if (laser_pwr == 0) { myLCD.print("    OFF"); }
   else if (laser_pwr == 5) { myLCD.print(F("BREATHE")); }
   else if (laser_pwr == 4) { myLCD.print(F(" STROBE")); }
-  else if (laser_pwr == 6) { myLCD.print(F("   FADE")); }
+  //else if (laser_pwr == 6) { myLCD.print(F("   FADE")); }
   //else myLCD.print(F("  ERROR"));
 
   //Laser strobe
@@ -776,10 +817,11 @@ void mode3() //
   
   if (laser_pwr == 5) { laserBreathe(); }
   
-  if (laser_pwr == 6) {
+  /*if (laser_pwr == 6) {
     for (int16_t val = 255; val > 0; val-=strobeKnockVal)  {analogWrite(LASEREN, val); delay(strobeStopVal);} delay(200); //brighten laser
     for (int16_t val = 0; val <= 255; val+=strobeKnockVal) {analogWrite(LASEREN, val); delay(strobeStopVal);} delay(100); //dim laser
-  }
+  }*/
+  
   
   /*if (laser_pwr == 4) {
     if (laserStrobeDir) { for (int val = 255; val > 0; val-=strobeKnockVal)  {analogWrite(LASEREN, val); delay(strobeStopVal);} delay(200); }//brighten laser
@@ -864,6 +906,7 @@ void interrupt0()
   }
     
     initSet = 0;
+    xbeePrintMode = 1;
     //digitalWrite(BUTTONLED, HIGH);
     //Serial.print("Interrupt Set Mode: "); //  Serial.println(mode);
     //analogWrite(BUTTONLED, ledLuxLevel); 
@@ -901,10 +944,10 @@ void interrupt1() {
         case 255: analogWrite(LASEREN, 255-127); laser_pwr = 127; break; //now at 127 brightness
         case 127: analogWrite(LASEREN, 255-45);  laser_pwr = 45;  break; //now at 45 brightness
         case 45: digitalWrite(LASEREN, LOW);     laser_pwr = 4;   break; //now strobing
-        case 5:  digitalWrite(LASEREN, HIGH);    laser_pwr = 6;          //now fading [WAIT REQUIRED -> FOR]
+        case 5:  digitalWrite(LASEREN, HIGH);    laser_pwr = 0;          //now off  ////now fading [WAIT REQUIRED -> FOR]
                  LCDsetPosition(4,14); myLCD.print(F("   WAIT")); break;
-        case 6:  digitalWrite(LASEREN, HIGH);    laser_pwr = 0;          //turn off laser, now off [WAIT REQUIRED -> FOR]
-                 LCDsetPosition(4,14); myLCD.print(F("   WAIT")); break; 
+        //case 6:  digitalWrite(LASEREN, HIGH);    laser_pwr = 0;          //turn off laser, now off [WAIT REQUIRED -> FOR]
+                 //LCDsetPosition(4,14); myLCD.print(F("   WAIT")); break; 
         case 4:  digitalWrite(LASEREN, HIGH);    laser_pwr = 5;   break; //now breathing
         case 3:  digitalWrite(LASEREN, HIGH);    laser_pwr = 5;   break; //now breathing 
                //case 4 and 3 cannot be combined with an || statement; it won't work.
