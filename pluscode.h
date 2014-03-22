@@ -62,8 +62,8 @@ void setPins2() {
   pinMode(9, OUTPUT);    //Buzzer #PWM
   pinMode(10, OUTPUT);   //Laser EN #PWM
   pinMode(11, OUTPUT);   //LED for mode button (BUTTONLED) #PWM
-  pinMode(12, OUTPUT);   //I2C SDA/SCL Relay (RELAY)
-  pinMode(13, OUTPUT);   //Builtin LED
+  pinMode(12, INPUT);    //
+  pinMode(13, OUTPUT);   //Builtin LED (STAT2)
   pinMode(A0, OUTPUT);   //Error LED
   pinMode(A1, OUTPUT);   //XBee Sleep Pin
   pinMode(A2, OUTPUT);   //MCU Status 1 LED

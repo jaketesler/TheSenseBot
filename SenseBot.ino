@@ -41,7 +41,7 @@
  *
  * *************************************************************************
  */
-const String sbVersion = "v0.8.3r1";
+const String sbVersion = "v0.8.5r2";
 #define PCBVERSION1.0
 //#define PCBVERSION2.0
 const double pcbVersion = 1.0;
@@ -90,6 +90,7 @@ const double pcbVersion = 1.0;
 #define ERRORLED A7
 #define MIC 0
 
+
 #elif defined PCBVERSION2.0
 #define LCDPIN A2
 #define XBEELED 5
@@ -100,11 +101,12 @@ const double pcbVersion = 1.0;
 #define BUTTONLED 11
 #define RELAY A3
 #define ONETHREE 13
+#define STAT2 13
 #define HIH4030_PIN A6
 #define XBEESLEEPD A1
 #define STAT1 9
 #define MCUONLED 8
-#define STAT2 12
+#define CHGSTAT 12
 #define ERRORLED A0
 #define MIC A7
 
@@ -144,7 +146,7 @@ volatile uint8_t laser_pwr = 0;
 
 //xbee
 volatile boolean xbeeSleep = 0; //start XBee not Sleeping
-boolean xbeeButtonLED = LOW;
+boolean xbeeButtonLED = HIGH;
 
 //RTC
 //String curTimeHMS;
@@ -179,6 +181,7 @@ const unsigned int globalDelay = 250; //global event delay in ms (milliseconds) 
   #define globalDelayEEP 1
 const uint8_t ledLuxLevel = 200; //mode/XBee button LED brightness  (x out of 255)
   #define ledLuxLevelEEP 2
+const uint8_t ledXbeeLuxLevel = ledLuxLevel - 50;
 const uint8_t switchCount = 30; //the number of intervals that elapse before the light sensor switches reverts sensitivity
   #define switchCountEEP 3
 const boolean powerSaveEnabled = false; //enable or disable power-save functions for the regulator ###experimental
@@ -237,7 +240,7 @@ void setup()
   if(eeprom_config) {eeprom_set(); while(1);}
   
   myLCD.begin(9600);                          //initialize LCD at 9600 baud
-  xbee.begin(9600); delay(50); xbee.println(""); //xbee.println("boot");  //initialize XBee at 9600 baud
+  xbee.begin(9600); delay(50); //xbee.println(""); //xbee.println("boot");  //initialize XBee at 9600 baud //newline moved to splash below
   Wire.begin(); //delay(5);                   //initialize I2C
   fuelGauge.reset(); fuelGauge.quickStart();                            if(debug_setup) Serial.println("fuel.done");         //initialize LiPo capacity sensor
   altbar.begin(); altbarStarter();                                      if(debug_setup) Serial.println("AltSnsr.done");      //initialize MPL3115A2
@@ -248,12 +251,12 @@ void setup()
   //if (timeStatus() != timeSet) { timeOn = 0;                            if(debug_setup) Serial.println("No RTC"); }          //initialize or kill RTC           
   //else                         { timeOn = 1;                            if(debug_setup) Serial.println("RTC set"); }         //we are 1-offing this
   if(debug_setup && !tsl.begin()) { //There was a problem detecting the TSL2561 ... check the connections
-    xbee.print(F("Ooops, no TSL2561 detected ... Check your wiring or I2C ADDR!"));
+    xbee.print(F("Ooops, no TSL2561 detected...!"));
     statusLight(1,0,1); delay(10000); }
   
   //xbee.println("XBee Sleep..."); if(debug_setup) Serial.println(F("XBee Sleep..."));
   digitalWrite(XBEESLEEPD, xbeeSleep); //start or stop XBee sleep
-  analogWrite(XBEELED, ledLuxLevel); xbeeButtonLED = HIGH; //turn on XBee Button LED
+  analogWrite(XBEELED, ledXbeeLuxLevel); //xbeeButtonLED = HIGH; //turn on XBee Button LED
   
 
   //delay(500);
@@ -265,7 +268,8 @@ void setup()
   //LCDbrightness(255); //increases binary size a lot
   //LCDturnDisplayOn(); 
   LCDclearScreen(); //clears LCD
-  LCDsetPosition(1,1); myLCD.print(F("  Jim The SenseBot"));  xbee.println(F("Jim The SenseBot")); //splash
+  //LCDsetPosition(1,1); myLCD.print(F("  Jim The SenseBot"));  xbee.println(F("Jim The SenseBot")); //splash
+  LCDsetPosition(1,3); myLCD.print(F("Jim The SenseBot"));  xbee.println('\n'+"Jim The SenseBot"); //splash
   LCDsetPosition(2,1); myLCD.print(F("Built by Jake Tesler")); xbee.println(F("Built by Jake Tesler"));
   //xbee.println("[To sleep, press red button on the back.]"); 
   LCDsetPosition(3,1); myLCD.print(sbVersion); LCDsetPosition(3,11); myLCD.print(F("Build: ")); myLCD.print(pcbVersion);
@@ -331,8 +335,12 @@ void loop() {
   
   if (initSet == 0) //if we just switched modes, execute these "housekeeping" commands
   {
-    if (prevMode == 3 && mode != 3) { laser_pwr = 0; /*laserStrobeDir = 1;*/ digitalWrite(LASEREN, HIGH); 
-                                    /*digitalWrite(STAT2, LOW);*/ digitalWrite(ONETHREE, LOW); } //disable laser
+    
+    if (mode != 3) {
+      analogWrite(XBEELED, ledXbeeLuxLevel); 
+      if (prevMode == 3) { laser_pwr = 0; /*laserStrobeDir = 1; digitalWrite(STAT2, LOW);*/ 
+                                      digitalWrite(LASEREN, HIGH); digitalWrite(ONETHREE, LOW); } //disable laser
+    }
     if (pcbVersion==1.0 && powerSaveEnabled && mode != 0) digitalWrite(PWSAVE, HIGH);
     if (mode == -1) { buzz(BUZZER,400,200); delay(200); //buzz(BUZZER,400,200); //buzz on pin 9 at 400hz for 200ms
                       mode = 0; if(debug_loop) Serial.println("ModeSetTo0"); }
@@ -362,10 +370,10 @@ void loop() {
         xbee.println(genCurTimeMDYStr+ " " + genCurTimeHMSStr);
       }
       if (debug_verbose) { xbee.print(F("Free Mem: ")); xbee.print(freeRam()); xbee.println(F("/2048")); } //memory
-      if (battLevel < 255 && battLevel > -0.01) { xbee.print("Battery: "); xbee.print(battLevel,1); xbee.println("%"); } //battery
-      else if (battLevel >= 255)                { xbee.println(F("Batt Sensor Error")); }
-      else if (battLevel <= -0.01)              { xbee.println(F("Batt Low Err")); }
-      xbee.println("");
+      if (battLevel < 255 && battLevel > -0.01) { xbee.print("Battery: "); xbee.print(battLevel,1); xbee.println("%"+'\n'); } //battery
+      else if (battLevel >= 255)                { xbee.println(("Batt Read Err"+'\n')); }
+      else if (battLevel <= -0.01)              { xbee.println(("Batt Low Err"+'\n')); }
+      //xbee.println("");
     }
 
   //set title bar...mode titles cannot be longer than 14char
@@ -424,8 +432,8 @@ void mode0() //off-recharge
       LCDclearScreen(); //delay(50);
       LCDsetPosition(1,1); myLCD.print("OFF/CHG"); if(debug_mode0) Serial.println("OFF/CHG");
       if(xbeePrintMode) {
-        xbee.println("");
-        xbee.println("Off / Charge Mode"); 
+        //xbee.println("");
+        xbee.println('\n'+"Off Mode"); 
         xbeePrintMode = 0; 
         xbeePrintInfo = 1;
       } 
@@ -506,7 +514,7 @@ void mode0() //off-recharge
 
 void mode1() //Accelerometer/Compass
 {
-  if(debug_mode1)Serial.println("InsideMode1");
+  if(debug_mode1) Serial.println("InsideMode1");
   if (initSet != 1)
   {
     initSet = 1; //should be first because of interrupt possibility
@@ -520,7 +528,7 @@ void mode1() //Accelerometer/Compass
     else {  ////if (prevMode == 0)
       LCDclearScreen(); delay(50);
       LCDsetPosition(4,1); myLCD.print("LOADING...");
-      statusLight(0,1,1); lsm.heading(); statusLight(0,0,0); //This will generate an error if the sensor isn't present (auto stalls the MCU).
+      statusLight(0,0,1); lsm.heading(); statusLight(0,0,0); //This will generate an error if the sensor isn't present (auto stalls the MCU).
       LCDclearScreen();
       prevMode = 1; 
       LCDsetPosition(1,1); myLCD.print("Where Am I?"); if(debug_mode1)Serial.println("Where Am I?");
@@ -659,7 +667,7 @@ void mode2() //Altitude
   LCDsetPosition(3,11);
   altbar.setModeBarometer();
   float curBarPres = altbar.readPressure();
-  if (curBarPres < 115000) { myLCD.print(curBarPres, 0); myLCD.print(" Pa  "); }
+  if (curBarPres < 115000) { myLCD.print(curBarPres, 0); myLCD.print(" Pa  "); } //whitespace for screen ghosting error
   else                     { myLCD.print(">1k kPa"); }
   if(debug_mode2) { Serial.print(curBarPres); Serial.println(" Pa"); }
 
@@ -764,7 +772,7 @@ void mode3() //
     }
     if (good) {
       LCDsetPosition(2,6); myLCD.print(currentLuxLevel); 
-        if( tslSwitchCounter > 0 && currentLuxLevel > 1000) {myLCD.print("  ");} else myLCD.print("   ");
+      if( tslSwitchCounter > 0 && currentLuxLevel > 1000) myLCD.print("  "); else myLCD.print("   ");
       LCDsetPosition(3,8); myLCD.print("   ");
       LCDsetPosition(3,6); myLCD.print(data0);
       LCDsetPosition(4,8); myLCD.print("   ");
@@ -774,7 +782,7 @@ void mode3() //
     
     LCDsetPosition(2,1); myLCD.print("Lux: ");
   }
-  else { statusLight(1,0,1); printTSLError(tsl.getError()); delay(10000);}
+  else { statusLight(1,0,1); /*printTSLError(tsl.getError());*/ delay(10000);}
   
   
   
@@ -793,7 +801,7 @@ void mode3() //
   //Blink XBee Button LED
   if (xbeeLEDCount > 3) { //4 beats or greater
     if (xbeeButtonLED) digitalWrite(XBEELED, LOW);        //turn off XBee Button LED
-    else               analogWrite(XBEELED, ledLuxLevel); //turn on XBBL to light level
+    else               analogWrite(XBEELED, ledXbeeLuxLevel); //turn on XBBL to light level
     xbeeLEDCount = 0;
     xbeeButtonLED = !xbeeButtonLED;
   }
@@ -860,7 +868,7 @@ void mode4() //warning
     {
       LCDsetPosition(1,1); 
       if (curWarnScreen) { myLCD.print(F("WARNING: Do not use this robot for scien-tific purposes, as Press to continue...")); }
-      else               { myLCD.print(F("it may sometimes    yield inaccurate or imprecise data.     ")); }
+      else               { myLCD.print(F("it may sometimes    yield inaccurate or imprecise data.    ")); }
       
       if (millis() - previousWarnMillis > 2500)
       {
@@ -931,8 +939,8 @@ void interrupt1() {
     if(mode != -1) { buzz(BUZZER,575,200); } //buzz on pin 9 at 575hz for 200ms //INTERRUPT INDICATOR
 
     digitalWrite(STAT1, HIGH); digitalWrite(ERRORLED, HIGH); digitalWrite(MCUONLED, LOW); 
-    //statusLightIntOne(1,1,1);
-    //analogWrite(XBEELED, ledLuxLevel); //XBee Button LED
+    //statusLightIntOne(1,0,1);
+    //analogWrite(XBEELED, ledXbeeLuxLevel); //XBee Button LED
     //analogWrite(BUTTONLED, ledLuxLevel); OR //digitalWrite(BUTTONLED, LOW); //why did we have these...leftovers from CB?
 
     if (mode == 3) {
@@ -959,7 +967,7 @@ void interrupt1() {
       
       if (laser_pwr > 5) { /*digitalWrite(STAT2, HIGH);*/ digitalWrite(ONETHREE, HIGH); } //effectively, if laser is on (but we don't deal with strobing here) 
       
-      if(pcbVersion==2.0){if(laser_pwr>0){digitalWrite(STAT2, HIGH); } else digitalWrite(STAT2, LOW);} //effectively, if laser is on (but we don't deal with strobing here) 
+      if(pcbVersion != 2.0){if(laser_pwr>0){digitalWrite(STAT2, HIGH); } else digitalWrite(STAT2, LOW);} //effectively, if laser is on (but we don't deal with strobing here) 
     }
 
     else { //mode != 3
@@ -1023,8 +1031,10 @@ String genCurTimeMDY() {
 }
 
 void altbarStarter() {
+  altbar.setModeActive();
   altbar.setModeAltimeter(); // Measure altitude above sea level in meters
-  altbar.setOversampleRate(7); // Set Oversample to the recommended 128
+  altbar.setOversampleRate(7); // Set Oversample to the recommended 128 (512ms per reading)
+  //altbar.setOversampleRate(6); // Set Oversample to the 64 (256ms per reading, but noiser)
   altbar.enableEventFlags(); // Enable all three pressure and temp event flags
 }
 
