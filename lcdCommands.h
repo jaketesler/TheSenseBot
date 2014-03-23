@@ -59,7 +59,8 @@ void LCDwhiteSpaceFromTo(uint8_t line, uint8_t fromPos, uint8_t toPos)
 {
   uint8_t curPos = fromPos;
   LCDsetPosition(line,fromPos); 
-  do {
+  do
+  {
     myLCD.print(" "); curPos++;
   }
   while (curPos != toPos+1);
@@ -68,7 +69,7 @@ void LCDwhiteSpaceFromTo(uint8_t line, uint8_t fromPos, uint8_t toPos)
 void LCDwhiteSpace(uint8_t line, uint8_t fromPos, uint8_t length)
 {
   LCDsetPosition(line,fromPos); 
-  for (int curPos = 1; curPos < length+1; curPos++) { myLCD.print(" "); }
+  for (uint8_t curPos = 1; curPos < length+1; curPos++) { myLCD.print(" "); }
 }
 //-------------------------------------------------------------------------------------------
 void LCDturnDisplayOn() //this turns the display back ON

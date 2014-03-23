@@ -853,32 +853,39 @@ void mode4() //warning
   if (prevMode == 0) // else
   {
     //prevmode = 4; //else set to current mode //RECTIFIED, "MODE 4" ISN'T A MODE!!
-    warningShown = 1; //to activate next step when interrupt is called
-    if(debug_mode4) Serial.println(F("WarningShownEquals1"));
-    //interrupts();
-    //initSet = 0;
-    unsigned long previousWarnMillis = millis();
-    //previousWarnMillis = millis();
-    
-    static boolean curWarnScreen = true; //T = 1; F = 2
-    
-    if(debug_mode4) Serial.println("WarnScreen1");
-    interrupts();
-    while(warningShown == 1)
-    {
-      LCDsetPosition(1,1); 
-      if (curWarnScreen) { myLCD.print(F("WARNING: Do not use this robot for scien-tific purposes, as Press to continue...")); }
-      else               { myLCD.print(F("it may sometimes    yield inaccurate or imprecise data.    ")); }
+   
+   
+    if(pcbVersion == 1.0) {
+      warningShown = 1; //to activate next step when interrupt is called
+      if(debug_mode4) Serial.println(F("WarningShownEquals1"));
+      //interrupts();
+      //initSet = 0;
+      unsigned long previousWarnMillis = millis();
+      //previousWarnMillis = millis();
       
-      if (millis() - previousWarnMillis > 2500)
+      static boolean curWarnScreen = true; //T = 1; F = 2
+      
+      if(debug_mode4) Serial.println("WarnScreen1");
+      interrupts();
+      while(warningShown == 1)
       {
-        if(debug_mode4) Serial.println("WarnScreenChange");
-        curWarnScreen = !(curWarnScreen);
-        previousWarnMillis = millis();
+        LCDsetPosition(1,1); 
+        if (curWarnScreen) { myLCD.print(F("WARNING: Do not use this robot for scien-tific purposes, as Press to continue...")); }
+        else               { myLCD.print(F("it may sometimes    yield inaccurate or imprecise data.    ")); }
+        
+        if (millis() - previousWarnMillis > 2500)
+        {
+          if(debug_mode4) Serial.println("WarnScreenChange");
+          curWarnScreen = !(curWarnScreen);
+          previousWarnMillis = millis();
+        }
       }
     }
-    
-  }
+    else if (pcbVersion==2.0)
+    {
+       mode = 1; warningShown = 2; prevMode = 0; initSet = 0; if(debug_int0)Serial.println("switchWarnShown1");
+    }
+}
 }
 
 
@@ -910,6 +917,7 @@ void interrupt0()
         default: mode = 0; if(debug_int0)Serial.println("switchfrom_elseto0");
       }
       break;
+    
       default: statusLight(0,0,1); if(debug_int0) {Serial.println("warning err"); xbee.println("err: true-ing out"); while(1);}
   }
     
@@ -1091,11 +1099,13 @@ void printTSLError(byte error) // If there's an TSL I2C error, this function wil
 
 
 void printGlobals() {
-  if(debug_setup) Serial.println("Global Variables:");
-  if(debug_setup) Serial.print("Global Delay: ");     if(debug_setup) Serial.print(globalDelay);
-  if(debug_setup) Serial.print(" | LED Lux Level: "); if(debug_setup) Serial.print(ledLuxLevel);
-  if(debug_setup) Serial.print(" | Switch Count: ");  if(debug_setup) Serial.print(switchCount);
-  if(debug_setup) Serial.print(" | Power Save: ");    if(debug_setup) Serial.println(powerSaveEnabled);
+  if(debug_setup) {
+    Serial.println("Global Variables:");
+    Serial.print("Global Delay: ");     Serial.print(globalDelay);
+    Serial.print(" | LED Lux Level: "); Serial.print(ledLuxLevel);
+    Serial.print(" | Switch Count: ");  Serial.print(switchCount);
+    Serial.print(" | Power Save: ");    Serial.println(powerSaveEnabled);
+  }
 }
 
 //const uint8_t pulseValue[] PROGMEM = 
