@@ -1,9 +1,11 @@
+#define PCBVERSION2.0
+
 #ifdef PCBVERSION1.0
 #define LASEREN 10
+#endif
 
-#elif defined PCBVERSION2.0
+#ifdef PCBVERSION2.0
 #define LASEREN 10
-
 #endif
 
 

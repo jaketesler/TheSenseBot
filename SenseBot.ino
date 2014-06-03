@@ -6,12 +6,12 @@
 /* *************************************************************************
  *    ********* READ THESE INSTRUCTIONS! *********
  *  This project uses a custom PCB design (public design coming soon), custom enclosure, and various sensors and componentry, including the following: 
- *  Atmel ATmega328P-AU processor, Digi International/MaxStream XBee 1mW 802.15.4 Series 1 radio module (with trace antenna), STMicro LSM303D Accelerometer/Magnetometer and Compass,
- *  Freescale MPL3115A2 Temperature and Barometric Pressure sensor, Honeywell HIH4030 Humidity sensor, TexasAOS TSL2561 Light and Illumination (IR and Visible) sensor, 
- *  Maxim Integrated DS1307 RTC for Date/Time storage and management (daughtercard for v1), 
+ *  Atmel ATmega328P-AU processor, Digi International/MaxStream XBee 1mW 802.15.4 Series 1 radio module (with trace antenna), FTDI FT232RL USB UART controller IC, 
+ *  STMicro LSM303D Accelerometer/Magnetometer and Compass, Freescale MPL3115A2 Temperature and Barometric Pressure sensor, Honeywell HIH4030 Humidity sensor, 
+ *  TexasAOS TSL2561 Light and Illumination (IR and Visible) sensor, Maxim Integrated DS1307Z+ RTC for Date/Time storage and management, 
  *  Maxim MAX17043G+U LiPo Monitoring module, dual TI TPS61200/Microchip MCP73831T package for LiPo regulation and power distribution, 
- *  Pololu D24V6F3 and S10V4F5 for voltage regulation, Hitachi HD44780 PIC16F88-enabled character 20x4 Serial LCD panel, and SparkFun Red TTL 654.5nm Class 3A Laser (detachable). 
- *  The I2C LiPo SDA/SCL control uses a Omron G5V-2 Relay (DPDT, although DPST will work), and sound is produced by a Multicomp MCKPT-G1210 Piezo Buzzer. 
+ *  Hitachi HD44780 PIC16F88-enabled character 20x4 Serial LCD panel, STMicro STMAV340 Quad SPDT Wide-Bandwidth Video Switch, and SparkFun Red TTL 654.5nm Class 3A Laser. 
+ *  The I2C LiPo SDA/SCL control uses a Omron G5V-2 Relay (DPDT, although DPST will work), and sound is produced by a CUI CEM-1203(42) Piezo Buzzer. 
  *  
  *  This combined hardware produces a device with 7DOF (degrees of freedom), integrated temperature and (limited) weather monitoring, 
  *  area condition sensing and environmental surroundings awareness. 
@@ -41,11 +41,11 @@
  *
  * *************************************************************************
  */
-const String sbVersion = "v0.8.5r2";
-#define PCBVERSION1.0
-//#define PCBVERSION2.0
-const double pcbVersion = 1.0;
-//const double pcbVersion = 2.0;
+const String sbVersion = "v2.0.2b2";
+//#define PCBVERSION1.0
+#define PCBVERSION2.0
+//const double pcbVersion = 1.0;
+const double pcbVersion = 2.0;
 
 
 
@@ -88,7 +88,8 @@ const double pcbVersion = 1.0;
 #define MCUONLED A3
 #define STAT2 A6
 #define ERRORLED A7
-#define MIC 0
+#define MIC 0 //because we don't use it
+#define CHGSTAT 0 //because we don't use it
 
 
 #elif defined PCBVERSION2.0
@@ -100,7 +101,7 @@ const double pcbVersion = 1.0;
 #define LASEREN 10
 #define BUTTONLED 11
 #define RELAY A3
-#define ONETHREE 13
+#define ONETHREE 13 //Same as STAT2
 #define STAT2 13
 #define HIH4030_PIN A6
 #define XBEESLEEPD A1
@@ -141,6 +142,10 @@ volatile unsigned long last_interrupt_time = 0; //int0
 //volatile unsigned long last_interrupt1_time = 0; //int1
 //volatile unsigned long interrupt1_time = millis(); //int1
 
+//battery
+//static uint8_t chargeBattLCDCount = 0;
+uint8_t chargeBattLCDCount = 0;
+
 //laser
 volatile uint8_t laser_pwr = 0;
 
@@ -154,10 +159,10 @@ boolean xbeeButtonLED = HIGH;
 boolean timeOn; //are we enabling time for this boot?
 
 //light sensor
-const boolean tslGain = 0;  // Gain setting, 0 = X1, 1 = X16; //this is const only because we don't change it below...but it is change-able
-uint8_t tslTime = 2; //integration time constant //0 = 13.7ms, 1 = 101ms, 2 = 402ms, 3 = manual, make sure to set both vars
-unsigned int msInt;  // Integration ("shutter") time in milliseconds
-//static int tslSwitchCounter = 0;
+const boolean lumoGain = 0;  // Gain setting, 0 = X1, 1 = X16; //this is const only because we don't change it below...but it is change-able
+uint8_t lumoTime = 2; //integration time constant //0 = 13.7ms, 1 = 101ms, 2 = 402ms, 3 = manual, make sure to set both vars
+unsigned int lumoMSint;  // Integration ("shutter") time in milliseconds
+//static int lumoSwitchCounter = 0;
 
 //how many cycles until the screen rewrites content
 uint8_t redrawCounter;
@@ -189,10 +194,10 @@ const boolean powerSaveEnabled = false; //enable or disable power-save functions
 const boolean eeprom_config = false; //configure EEPROM settings?
 
 //initialize
-MAX1704 fuelGauge;  //I2C - initialize fuel gauge
-MPL3115A2 altbar;   //I2C - initialize barometer/altimeter/temperature
-LSM303 lsm;         //I2C - initialize compass/accelerometer
-SFE_TSL2561 tsl;    //I2C - initialize light sensor
+MAX1704 battStat;   //I2C - initialize fuel gauge
+MPL3115A2 altBar;   //I2C - initialize barometer/altimeter/temperature
+LSM303 IMU;         //I2C - initialize compass/accelerometer
+SFE_TSL2561 lumo;   //I2C - initialize light sensor
 HIH4030 calHumid(HIH4030_PIN, HIH4030_SUPPLY_VOLTAGE, ARDUINO_VCC);        //Analog - initialize humidity sensor (calibrated)
 //HIH4030 uncalHumid(HIH4030_PIN, HIH4030_SUPPLY_VOLTAGE, ARDUINO_VCC);    //Analog - initialize humidity sensor
 SoftwareSerial xbee(XBEERX,XBEETX); //7 iRX, 6 or 4 iTX* //initialize XBee
@@ -200,29 +205,30 @@ SoftwareSerial xbee(XBEERX,XBEETX); //7 iRX, 6 or 4 iTX* //initialize XBee
 
 void setup()
 { 
-  if (pcbVersion==1.0) {
+  if (pcbVersion==2.0) {
     pinMode(2, INPUT_PULLUP); //for interrupt 0 (this is the mode button)
     pinMode(3, INPUT_PULLUP); //for interrupt 1 (this is the XBee interrupt) #PWM
-  //pinMode(4, OUTPUT);    //LCD RX/TX is on pin 4 **SendOnlySoftwareSerial
+  //pinMode(4, OUTPUT);    //XBee (MCU to) TX is on pin 4 **SoftwareSerial
     pinMode(5, OUTPUT);    //XBee Wireless Interupt LED #PWM
-  //pinMode(6, OUTPUT);    //XBee (MCU to) RX is on pin 6 #PWM **SoftwareSerial
-  //pinMode(7, OUTPUT);    //XBee (MCU to) TX is on pin 7 **SoftwareSerial
-    pinMode(8, OUTPUT);    //LiPo Regulator Power-Save
-    pinMode(9, OUTPUT);    //Buzzer #PWM
+    pinMode(6, OUTPUT);    //Buzzer #PWM
+  //pinMode(7, OUTPUT);    //XBee (MCU to) RX is on pin 7 #PWM **SoftwareSerial
+    pinMode(8, OUTPUT);    //MCU-ON LED
+    pinMode(9, OUTPUT);    //MCU Status 1 LED
     pinMode(10, OUTPUT);   //Laser EN #PWM
     pinMode(11, OUTPUT);   //LED for mode button (BUTTONLED) #PWM
-    pinMode(12, OUTPUT);   //I2C SDA/SCL Relay (RELAY)
-    pinMode(13, OUTPUT);   //Builtin LED
-    pinMode(A0, INPUT);    //Humidity sensor
+    pinMode(12, INPUT_PULLUP); //Charge Indicator
+  //pinMode(12, INPUT);        //Charge Indicator
+    pinMode(13, OUTPUT);   //Builtin LED/STAT2
+    pinMode(A0, OUTPUT);   //Error LED
     pinMode(A1, OUTPUT);   //XBee Sleep Pin
-    pinMode(A2, OUTPUT);   //MCU Status 1 LED
-    pinMode(A3, OUTPUT);   //MCU On LED
+  //pinMode(A2, OUTPUT);   //LCD RX/TX is on pin 4 **SendOnlySoftwareSerial
+    pinMode(A3, OUTPUT);   //I2C SDA/SCL Relay (RELAY)
   //pinMode(A4, INPUT);    //I2C SDA #PWM-S **Wire
   //pinMode(A5, INPUT);    //I2C SCL #PWM-S **Wire
-    pinMode(A6, OUTPUT);   //MCU Status 2 LED
-    pinMode(A7, OUTPUT);   //Error LED
+    pinMode(A6, INPUT);    //Humidity sensor
+    pinMode(A7, INPUT);    //Microphone
   }
-  else if (pcbVersion==2.0){setPins2();}
+  else if (pcbVersion==1.0){setPins1();}
   
   analogWrite(BUTTONLED, ledLuxLevel);     //turn on LED initially
   if(pcbVersion==1.0) digitalWrite(PWSAVE, !powerSaveEnabled); //power-save mode (HIGH=off, LOW=on)
@@ -240,19 +246,22 @@ void setup()
   if(eeprom_config) {eeprom_set(); while(1);}
   
   myLCD.begin(9600);                          //initialize LCD at 9600 baud
-  xbee.begin(9600); delay(50); //xbee.println(""); //xbee.println("boot");  //initialize XBee at 9600 baud //newline moved to splash below
-  Wire.begin(); //delay(5);                   //initialize I2C
-  fuelGauge.reset(); fuelGauge.quickStart();                            if(debug_setup) Serial.println("fuel.done");         //initialize LiPo capacity sensor
-  altbar.begin(); altbarStarter();                                      if(debug_setup) Serial.println("AltSnsr.done");      //initialize MPL3115A2
-  lsm.init(); lsm.enableDefault();                                      if(debug_setup) Serial.println("ACM.done");          //initialize LSM303D
-  calHumid.calibrate(H_SLOPE, H_OFFSET);                                if(debug_setup) Serial.println("Humid.done");        //initialize/calibrate HIH4030
-  tsl.begin(); tsl.setPowerUp(); tsl.setTiming(tslGain,tslTime,msInt);  if(debug_setup) Serial.println("LuxSnsr.done");      //initialize TSL2561
+  xbee.begin(9600); //delay(50); //xbee.println(""); //xbee.println("boot");  //initialize XBee at 9600 baud //newline moved to splash below
+  Wire.begin(); delay(5);                   //initialize I2C
+  battStat.reset(); battStat.quickStart();                                if(debug_setup) Serial.println("fuel.done");         //initialize LiPo sensing
+  altBar.begin(); altBar.setModeActive(); altBar.setOversampleRate(7); 
+                  altBar.enableEventFlags();                              if(debug_setup) Serial.println("AltSnsr.done");      //initialize Atmospheric sensor
+  IMU.init(); IMU.enableDefault();                                        if(debug_setup) Serial.println("ACM.done");          //initialize IMU
+  calHumid.calibrate(H_SLOPE, H_OFFSET);                                  if(debug_setup) Serial.println("Humid.done");        //initialize/calibrate Humidity
+  lumo.begin(); lumo.setPowerUp(); 
+                lumo.setTiming(lumoGain,lumoTime,lumoMSint);              if(debug_setup) Serial.println("LuxSnsr.done");      //initialize Lumosity
   //setSyncProvider(RTC.get);                                             if(debug_setup) Serial.print("Get RTC...");          //the function to get the time from the RTC
   //if (timeStatus() != timeSet) { timeOn = 0;                            if(debug_setup) Serial.println("No RTC"); }          //initialize or kill RTC           
   //else                         { timeOn = 1;                            if(debug_setup) Serial.println("RTC set"); }         //we are 1-offing this
-  if(debug_setup && !tsl.begin()) { //There was a problem detecting the TSL2561 ... check the connections
-    xbee.print(F("Ooops, no TSL2561 detected...!"));
-    statusLight(1,0,1); delay(10000); }
+  if(debug_setup && !lumo.begin()) { //There was a problem detecting the TSL2561 ... check the connections
+    xbee.print(F("Oops, no TSL2561 detected...!"));
+    statusLight(1,0,1); delay(10000);
+  }
   
   //xbee.println("XBee Sleep..."); if(debug_setup) Serial.println(F("XBee Sleep..."));
   digitalWrite(XBEESLEEPD, xbeeSleep); //start or stop XBee sleep
@@ -265,6 +274,7 @@ void setup()
   digitalWrite(MCUONLED, HIGH);
   digitalWrite(STAT1, LOW);
 
+  LEDsetCustomCharacters(); //setup LCD custom characters
   //LCDbrightness(255); //increases binary size a lot
   //LCDturnDisplayOn(); 
   LCDclearScreen(); //clears LCD
@@ -285,7 +295,7 @@ void setup()
   //cyclone(3, 1000, 4, 12);
 
 
-/*
+/*  #### We can re-enable this code block for final release, unless space is an issue
     //A funky loading animation
    LCDsetPosition(4,17); myLCD.write(0x4F); myLCD.print("_o"); delay(167);
    LCDsetPosition(3,17); myLCD.print("_ _"); delay(333);
@@ -294,15 +304,25 @@ void setup()
    LCDsetPosition(3,19); myLCD.print("_"); delay(167);
    LCDsetPosition(3,19); myLCD.print("-"); delay(333);
 */
-   
-  //altbar.readTempF(); //for initial boot temperature eval
-  altbar.readTemp();
-  altbar.setModeBarometer(); altbar.readPressure(); altbar.readTemp();
+   if (pcbVersion==1.0) {
+      if (!timeOn) {
+        setSyncProvider(RTC.get);                  if(debug_setup) Serial.print("Get RTC...");   //the function to get the time from the RTC
+        if (timeStatus() != timeSet) { timeOn = 0; if(debug_setup) Serial.println("No RTC"); }   //initialize or permanently kill RTC           
+        else                         { timeOn = 1; if(debug_setup) Serial.println("RTC set"); }
+      }
+    }
+    else {
+      timeOn = true;
+      setSyncProvider(RTC.get);                  if(debug_setup) Serial.print("Get RTC...");   //the function to get the time from the RTC
+    }
+        
+  //altBar.readTempF(); //for initial boot temperature eval
+  altBar.readTemp(); //(why) does this need to be here?
+  altBar.setModeBarometer(); altBar.readPressure(); altBar.readTemp();
   //delay(1500);
   //delay(100);
   LCDclearScreen();
-  ///    #### We can re-enable these two code blocks for final release, unless space is an issue
-
+  
 
   //warningShown = 0;  //initialize warning system
   buzz(BUZZER,400,200); delay(250); //buzz on pin 9 at 400hz for 200ms
@@ -320,7 +340,7 @@ void loop() {
   //##DEBUG
   if(debug_loop) {
     Serial.print("MODE "); Serial.println(mode);
-    //Serial.println(fuelGauge.stateOfCharge());
+    //Serial.println(battStat.stateOfCharge());
     Serial.print("INITSET "); Serial.println(initSet);
     Serial.print("Free Mem:" ); Serial.print(freeRam()); Serial.println(" of 2048"); 
     Serial.println();
@@ -331,11 +351,11 @@ void loop() {
   if(redrawCounter > redrawMax) redrawCounter=0;
   else redrawCounter++;
   
-  float battLevel = fuelGauge.stateOfCharge();
+  float battLevel = battStat.stateOfCharge();
   
   if (initSet == 0) //if we just switched modes, execute these "housekeeping" commands
   {
-    
+    chargeBattLCDCount=0;
     if (mode != 3) {
       analogWrite(XBEELED, ledXbeeLuxLevel); 
       if (prevMode == 3) { laser_pwr = 0; /*laserStrobeDir = 1; digitalWrite(STAT2, LOW);*/ 
@@ -347,17 +367,12 @@ void loop() {
     digitalWrite(MCUONLED, HIGH);
     redrawCounter = 0;
     if(mode == 0) { //we can disable this if we want to add RTC for every mode
-      if (!timeOn) {
-        setSyncProvider(RTC.get);                  if(debug_setup) Serial.print("Get RTC...");   //the function to get the time from the RTC
-        if (timeStatus() != timeSet) { timeOn = 0; if(debug_setup) Serial.println("No RTC"); }   //initialize or permanently kill RTC           
-        else                         { timeOn = 1; if(debug_setup) Serial.println("RTC set"); }
-      } 
-      if(timeOn) { //display time
+      if (pcbVersion != 1.0 || timeOn)//, e.g. normal
+      {
         time_t t = processSyncMessage();
         if (t != 0) { RTC.set(t); setTime(t); } // set the RTC and the system time to the received value
-      }
+      }  
     }
-    
   }
   else { digitalWrite(MCUONLED, LOW); }
 
@@ -384,20 +399,48 @@ void loop() {
 
   //GLOBAL BATTERY STAT
   if(debug_loop){ Serial.print("global batt "); Serial.println(battLevel); }
-  LCDsetPosition(1,15); 
+  boolean chargeActive = !digitalRead(CHGSTAT);
+  //static boolean wasCharging;
+  LCDsetPosition(1,14); 
+  
+  if(pcbVersion == 2.0 && chargeActive) {
+      //wasCharging=true;
+      myLCD.write((byte)7);
+      if (chargeBattLCDCount > 5) chargeBattLCDCount=0; //greater than should be (number of batt statments - 1)
+      myLCD.write((byte)chargeBattLCDCount);
+      chargeBattLCDCount++;
+  }
+  else {
+    //if (wasCharging) {wasCharging = !wasCharging;}
+    myLCD.print(" ");
+    
+    uint8_t battLevelInd = map(battLevel,0,100,0,5); //map battery indicator to %
+    if(battLevel > 25) {
+      myLCD.write((byte)battLevelInd); //batt logo
+    }
+    else
+    {
+      static boolean battFlash;
+      (battFlash) ? (myLCD.write((byte)battLevelInd)) : (myLCD.print(" "));
+      battFlash = !battFlash;
+    }
+    
+    chargeBattLCDCount=0;
+  }
+  
   if (battLevel < 100 && battLevel > -0.01) //if normal
   {
-    myLCD.print("B"); //batt logo;
     if(battLevel < 10) myLCD.print("0"); //prefix zero for battLevel double digits
     myLCD.print(battLevel,1); //[,1]=.1 (include decimal)
     /*LCDsetPosition(1,20);*/ myLCD.print("%");
   }
   else if (battLevel >= 100 && 
-           battLevel < 255)    { myLCD.print("B FULL"); }
-  else if (battLevel >= 255)   { myLCD.print("PW_ERR"); digitalWrite(ERRORLED, HIGH); }
-  else if (battLevel <= -0.01) { myLCD.print("PW_LOW"); digitalWrite(ERRORLED, HIGH); }
-  else                         { myLCD.print("B_SNSR"); digitalWrite(ERRORLED, HIGH); }
+           battLevel < 255)    { myLCD.print(" FULL"); }
+  else if (battLevel >= 255)   { myLCD.print("P_ERR"); digitalWrite(ERRORLED, HIGH); }
+  else if (battLevel <= -0.01) { myLCD.print("P_LOW"); digitalWrite(ERRORLED, HIGH); }
+  else                         { myLCD.print("B_SNS"); digitalWrite(ERRORLED, HIGH); }
 
+  //mode switcher
   switch(mode)
     {
       case 1: mode1(); break;
@@ -464,7 +507,7 @@ void mode0() //off-recharge
      LCDsetPosition(3,1); myLCD.print("Lower Out of Range");
      if(debug_mode0) Serial.println("Battery Error");
      }*/
-    float battLevel = fuelGauge.stateOfCharge();
+    float battLevel = battStat.stateOfCharge();
     if (battLevel >= 254 || battLevel < 0) statusLight(1,0,1);
 
     //display time
@@ -481,19 +524,19 @@ void mode0() //off-recharge
 
     //3rd line Light
     unsigned int data0, data1; 
-    if (tsl.getData(data0, data1)) { //if we have connectivity
+    if (lumo.getData(data0, data1)) { //if we have connectivity
       double currentLuxLevel;
-      boolean good = tsl.getLux(tslGain,msInt,data0,data1,currentLuxLevel); //do we have a good (in-bounds) value [this line also generates lux value]
+      boolean good = lumo.getLux(lumoGain,lumoMSint,data0,data1,currentLuxLevel); //do we have a good (in-bounds) value [this line also generates lux value]
       if(good) { LCDsetPosition(3,1); myLCD.print("Lux: "); myLCD.print(currentLuxLevel); }
     }
-    else if(debug_mode3) { printTSLError(tsl.getError()); }
+    else if(debug_mode3) { printTSLError(lumo.getError()); }
     
     //3rd line Temperature
-    if (altbar.readTempF() > -1765) {
+    if (altBar.readTempF() > -1765) {
       LCDsetPosition(3,15);
-      myLCD.print(altbar.readTempF(), 1); //prints the temperature to LCD with one decimal place
-      myLCD.write(0b11011111);
-      myLCD.print("F");
+      myLCD.print(altBar.readTempF(), 1); //prints the temperature to LCD with one decimal place
+      //myLCD.write(0b11011111); myLCD.print("F");
+       myLCD.write((byte)7);
     }
 
     //Uptime reporting
@@ -504,7 +547,7 @@ void mode0() //off-recharge
     if(((millis1k) % 60) < 10) myLCD.print(" ");
     
     //internal temperature (v1)
-    if(pcbVersion==1.0)      { LCDsetPosition(4,13); myLCD.print("I:"); myLCD.print(getInternalTemp('F'), 1); myLCD.write(0b11011111); myLCD.print("F"); }
+    if(pcbVersion==1.0)      { LCDsetPosition(4,13); myLCD.print("I:"); myLCD.print(getInternalTemp('F'), 1); myLCD.write((byte)7); /*myLCD.write(0b11011111); myLCD.print("F");*/ }
     else if(pcbVersion==2.0) { LCDsetPosition(4,13); myLCD.print(analogRead(MIC), 1); myLCD.print("dB"); }
     
   }
@@ -528,7 +571,7 @@ void mode1() //Accelerometer/Compass
     else {  ////if (prevMode == 0)
       LCDclearScreen(); delay(50);
       LCDsetPosition(4,1); myLCD.print("LOADING...");
-      statusLight(0,0,1); lsm.heading(); statusLight(0,0,0); //This will generate an error if the sensor isn't present (auto stalls the MCU).
+      statusLight(0,0,1); IMU.heading(); statusLight(0,0,0); //This will generate an error if the sensor isn't present (auto stalls the MCU).
       LCDclearScreen();
       prevMode = 1; 
       LCDsetPosition(1,1); myLCD.print("Where Am I?"); if(debug_mode1)Serial.println("Where Am I?");
@@ -559,40 +602,40 @@ void mode1() //Accelerometer/Compass
     LCDsetPosition(2,1); myLCD.print("Heading:");
   }
   
-  float curHeading = lsm.heading();
+  float curHeading = IMU.heading();
   /*LCDsetPosition(2,1);
    myLCD.print("Heading: "); myLCD.print(curHeading);*/  //This would save space
   LCDsetPosition(2,1); myLCD.print("Heading: ");/*LCDsetPosition(2,9);*/ if(curHeading) {myLCD.print(curHeading); myLCD.write(0b11011111);}
   if(debug_mode1) { Serial.print("Heading: "); Serial.println(curHeading); }
 
-  lsm.read();
+  IMU.read();
   
   /*LCDsetPosition(3,1);
   String LineA = "AX:"; 
-  LineA += (lsm.a.x)/10;
+  LineA += (IMU.a.x)/10;
   LineA += " Y:";
-  LineA += (lsm.a.y)/10;
+  LineA += (IMU.a.y)/10;
   LineA += " Z:";
-  LineA += (lsm.a.z)/10;
+  LineA += (IMU.a.z)/10;
   myLCD.print(LineA);
   LCDsetPosition(4,1); 
   String LineM = "MX:";
-  LineM += (lsm.m.x)/10;
+  LineM += (IMU.m.x)/10;
   LineM += " Y:";
-  LineM += (lsm.m.y)/10;
+  LineM += (IMU.m.y)/10;
   LineM += " Z:";
-  LineM += (lsm.m.z)/10;
+  LineM += (IMU.m.z)/10;
   myLCD.print(LineM);*/
   
   
   LCDsetPosition(3,1);
-  myLCD.print("AX:"); myLCD.print((lsm.a.x)/10);
-  myLCD.print(" Y:");   myLCD.print((lsm.a.y)/10);
-  myLCD.print(" Z:");   myLCD.print((lsm.a.z)/10);
+  myLCD.print("AX:");   myLCD.print((IMU.a.x)/10);
+  myLCD.print(" Y:");   myLCD.print((IMU.a.y)/10);
+  myLCD.print(" Z:");   myLCD.print((IMU.a.z)/10);
   LCDsetPosition(4,1);  
-  myLCD.print("MX:"); myLCD.print((lsm.m.x)/10);
-  myLCD.print(" Y:");   myLCD.print((lsm.m.y)/10);
-  myLCD.print(" Z:");   myLCD.print((lsm.m.z)/10);
+  myLCD.print("MX:");   myLCD.print((IMU.m.x)/10);
+  myLCD.print(" Y:");   myLCD.print((IMU.m.y)/10);
+  myLCD.print(" Z:");   myLCD.print((IMU.m.z)/10);
 }
 
 void mode2() //Altitude
@@ -644,8 +687,8 @@ void mode2() //Altitude
   }
 
 
-  float curTempF = altbar.readTempF();
-  float curTempC = altbar.readTemp();
+  float curTempF = altBar.readTempF();
+  float curTempC = altBar.readTemp();
   float curHumidRHT = calHumid.getTrueRH(curTempC); //calculate true %RH based from Temperature
   //float curHumidRH = calHumid.getSensorRH(); //calculate relative %RH
 
@@ -653,7 +696,8 @@ void mode2() //Altitude
   {
     LCDsetPosition(2,7);
     myLCD.print(curTempF, 1); //prints the temperature to LCD with one decimal place
-    myLCD.write(0b11011111); myLCD.print("F |  H");
+    //myLCD.write(0b11011111); myLCD.print("F |  H");
+    myLCD.write((byte)7); myLCD.print(" |  H");
     //humidity
     if((int)curHumidRHT < 10) { myLCD.print("0"); }
     myLCD.print(curHumidRHT, 1); //prints the humidity with one decimal place
@@ -665,8 +709,8 @@ void mode2() //Altitude
                     Serial.print(curHumidRHT); Serial.println("% RH"); }
 
   LCDsetPosition(3,11);
-  altbar.setModeBarometer();
-  float curBarPres = altbar.readPressure();
+  altBar.setModeBarometer();
+  float curBarPres = altBar.readPressure();
   if (curBarPres < 115000) { myLCD.print(curBarPres, 0); myLCD.print(" Pa  "); } //whitespace for screen ghosting error
   else                     { myLCD.print(">1k kPa"); }
   if(debug_mode2) { Serial.print(curBarPres); Serial.println(" Pa"); }
@@ -674,8 +718,8 @@ void mode2() //Altitude
 
 
   LCDsetPosition(4,11);
-  altbar.setModeAltimeter();
-  float curBarAlt = altbar.readAltitudeFt();
+  altBar.setModeAltimeter();
+  float curBarAlt = altBar.readAltitudeFt();
   if (curBarAlt < 12000 && curBarAlt > -2000) { myLCD.print((curBarAlt), 1); myLCD.print(" Ft."); } //(" Feet ");
   else                                        { myLCD.print(">10k Ft"); }
 
@@ -735,54 +779,54 @@ void mode3() //
   
   
   double currentLuxLevel;
-  static uint8_t tslSwitchCounter;
+  static uint8_t lumoSwitchCounter;
   unsigned int data0, data1;
   
   
-  if (tsl.getData(data0,data1)) { //if we have connectivity
-    if (tslSwitchCounter > switchCount) //if we need to switch back from integration
+  if (lumo.getData(data0,data1)) { //if we have connectivity
+    if (lumoSwitchCounter > switchCount) //if we need to switch back from integration
     {
-      msInt=402; tslTime=2; //0 = 13.7ms, 1 = 101ms, 2 = 402ms, 3 = manual, make sure to set both vars
-      tsl.setTiming(tslGain,tslTime,msInt); delay(50);
+      lumoMSint=402; lumoTime=2; //0 = 13.7ms, 1 = 101ms, 2 = 402ms, 3 = manual, make sure to set both vars
+      lumo.setTiming(lumoGain,lumoTime,lumoMSint); delay(50);
       LCDclearLine(2);
-      tslSwitchCounter = 0;
+      lumoSwitchCounter = 0;
     }
-    else if (tslSwitchCounter > 0) { //if we are still switched
+    else if (lumoSwitchCounter > 0) { //if we are still switched
       LCDsetPosition(2,14); myLCD.print(" LOW ");
-      if (switchCount-tslSwitchCounter+1 < 10) { myLCD.print(" "); }
-      myLCD.print(switchCount-tslSwitchCounter+1); 
-      tslSwitchCounter++; 
+      if (switchCount-lumoSwitchCounter+1 < 10) { myLCD.print(" "); }
+      myLCD.print(switchCount-lumoSwitchCounter+1); 
+      lumoSwitchCounter++; 
     }
     
     //LCDsetPosition(2,1); myLCD.print("Lux: ");
     
-    boolean good = tsl.getLux(tslGain,msInt,data0,data1,currentLuxLevel); //do we have a good (in-bounds) value [this line also generates lux value]
+    boolean good = lumo.getLux(lumoGain,lumoMSint,data0,data1,currentLuxLevel); //do we have a good (in-bounds) value [this line also generates lux value]
     if (data0 == 65535 || data1 == 65535) //if we need to switch integration because of upper value
     {
-      //if (tslSwitchCounter <= 1) {
-        msInt=101; tslTime=1; //0 = 13.7ms, 1 = 101ms, 2 = 402ms, 3 = manual
-        tsl.setTiming(tslGain,tslTime,msInt);
+      //if (lumoSwitchCounter <= 1) {
+        lumoMSint=101; lumoTime=1; //0 = 13.7ms, 1 = 101ms, 2 = 402ms, 3 = manual
+        lumo.setTiming(lumoGain,lumoTime,lumoMSint);
         if(debug_verbose) xbee.println(F("Sw Integration"));
         LCDsetPosition(2,5); myLCD.print(F("Sw Integration")); 
       //}
       delay(1250);
       LCDclearLine(2,5); delay(50);
       //LCDsetPosition(2,1); myLCD.print("Lux: "); //moved below
-      tslSwitchCounter = 1;
+      lumoSwitchCounter = 1;
     }
     if (good) {
       LCDsetPosition(2,6); myLCD.print(currentLuxLevel); 
-      if( tslSwitchCounter > 0 && currentLuxLevel > 1000) myLCD.print("  "); else myLCD.print("   ");
+      if( lumoSwitchCounter > 0 && currentLuxLevel > 1000) myLCD.print("  "); else myLCD.print("   ");
       LCDsetPosition(3,8); myLCD.print("   ");
       LCDsetPosition(3,6); myLCD.print(data0);
       LCDsetPosition(4,8); myLCD.print("   ");
       LCDsetPosition(4,6); myLCD.print(data1);
     }
-    else if (tslSwitchCounter != 1) { LCDsetPosition(2,5); myLCD.print(F("Bad Value")); } //bug fix for persistance of the string on screen
+    else if (lumoSwitchCounter != 1) { LCDsetPosition(2,5); myLCD.print(F("Bad Value")); } //bug fix for persistance of the string on screen
     
     LCDsetPosition(2,1); myLCD.print("Lux: ");
   }
-  else { statusLight(1,0,1); /*printTSLError(tsl.getError());*/ delay(10000);}
+  else { statusLight(1,0,1); /*printTSLError(lumo.getError());*/ delay(10000);}
   
   
   
@@ -800,8 +844,9 @@ void mode3() //
   static uint8_t xbeeLEDCount = 0;
   //Blink XBee Button LED
   if (xbeeLEDCount > 3) { //4 beats or greater
-    if (xbeeButtonLED) digitalWrite(XBEELED, LOW);        //turn off XBee Button LED
-    else               analogWrite(XBEELED, ledXbeeLuxLevel); //turn on XBBL to light level
+    //if (xbeeButtonLED) digitalWrite(XBEELED, LOW);        //turn off XBee Button LED
+    //else               analogWrite(XBEELED, ledXbeeLuxLevel); //turn on XBBL to light level
+    (xbeeButtonLED) ? digitalWrite(XBEELED, LOW) : analogWrite(XBEELED, ledXbeeLuxLevel);
     xbeeLEDCount = 0;
     xbeeButtonLED = !xbeeButtonLED;
   }
@@ -811,6 +856,7 @@ void mode3() //
   if(laser_pwr > 8) { 
     if (laser_pwr < 100) myLCD.print(" "); 
       if (laser_pwr < 10) myLCD.print(" ");
+        //if (laser_pwr < 1) myLCD.print(" ");
     myLCD.print(laser_pwr); myLCD.print(F("/255")); 
   }
   else if (laser_pwr == 0) { myLCD.print("    OFF"); }
@@ -975,7 +1021,7 @@ void interrupt1() {
       
       if (laser_pwr > 5) { /*digitalWrite(STAT2, HIGH);*/ digitalWrite(ONETHREE, HIGH); } //effectively, if laser is on (but we don't deal with strobing here) 
       
-      if(pcbVersion != 2.0){if(laser_pwr>0){digitalWrite(STAT2, HIGH); } else digitalWrite(STAT2, LOW);} //effectively, if laser is on (but we don't deal with strobing here) 
+      if(pcbVersion == 1.0){if(laser_pwr>0){digitalWrite(STAT2, HIGH); } else digitalWrite(STAT2, LOW);} //effectively, if laser is on (but we don't deal with strobing here) 
     }
 
     else { //mode != 3
@@ -1038,12 +1084,16 @@ String genCurTimeMDY() {
   return genTimeMDY;
 }
 
-void altbarStarter() {
-  altbar.setModeActive();
-  altbar.setModeAltimeter(); // Measure altitude above sea level in meters
-  altbar.setOversampleRate(7); // Set Oversample to the recommended 128 (512ms per reading)
-  //altbar.setOversampleRate(6); // Set Oversample to the 64 (256ms per reading, but noiser)
-  altbar.enableEventFlags(); // Enable all three pressure and temp event flags
+void altBarStarter() {
+  altBar.setModeActive();
+  altBar.setModeAltimeter(); // Measure altitude above sea level in meters
+  altBar.setOversampleRate(7); // Set Oversample to the recommended 128 (512ms per reading)
+  //altBar.setOversampleRate(6); // Set Oversample to the 64 (256ms per reading, but noiser)
+  altBar.enableEventFlags(); // Enable all three pressure and temp event flags
+}
+
+void lumoStarter() {
+  lumo.setPowerUp(); lumo.setTiming(lumoGain,lumoTime,lumoMSint);
 }
 
 int freeRam () {
@@ -1101,10 +1151,10 @@ void printTSLError(byte error) // If there's an TSL I2C error, this function wil
 void printGlobals() {
   if(debug_setup) {
     Serial.println("Global Variables:");
-    Serial.print("Global Delay: ");     Serial.print(globalDelay);
-    Serial.print(" | LED Lux Level: "); Serial.print(ledLuxLevel);
-    Serial.print(" | Switch Count: ");  Serial.print(switchCount);
-    Serial.print(" | Power Save: ");    Serial.println(powerSaveEnabled);
+    Serial.print  ("Global Delay: ");     Serial.print(globalDelay);
+    Serial.print  (" | LED Lux Level: "); Serial.print(ledLuxLevel);
+    Serial.print  (" | Switch Count: ");  Serial.print(switchCount);
+    Serial.print  (" | Power Save: ");    Serial.println(powerSaveEnabled);
   }
 }
 
@@ -1136,14 +1186,14 @@ double getInternalTemp(void)
 
 double getInternalTemp(char format) {
   if (format == 'F' || format == 'f') { return (((getInternalTemp() * 9.0)/ 5.0) + 32.0); }
-  else if (format == 'C' || format == 'c'){ return getInternalTemp(); }
+  //else if (format == 'C' || format == 'c'){ return getInternalTemp(); }
   else return getInternalTemp();
 }
 
 //double getInternalTempF(void) { return (((getInternalTemp() * 9.0)/ 5.0) + 32.0); } //[DEPRECATED]
 
 
-double map_double(double x, double in_min, double in_max, double out_min, double out_max)
+double map_double(double x, double in_min, double in_max, double out_min, double out_max) //this iss the map function, but for type double
 {
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }

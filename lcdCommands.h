@@ -10,16 +10,17 @@ If we meet some day, and you think this stuff is worth it, you can buy me a beer
 
 ************************************************************************/
 
-#define PCBVERSION1.0
-
+#define PCBVERSION2.0
+//DO NOT CHANGE BELOW THIS LINE
 #ifdef PCBVERSION1.0
 #define LCDPIN 4
+#endif
 
-#elif defined PCBVERSION2.0
+#ifdef PCBVERSION2.0
 #define LCDPIN A2
 #endif
 
-SendOnlySoftwareSerial myLCD(LCDPIN); //4 TX* ##CUSTOM
+SendOnlySoftwareSerial myLCD(LCDPIN); //4(A2) TX* ##CUSTOM
 
 //-------------------------------------------------------------------------------------------
 void LCDclearScreen()
@@ -34,18 +35,28 @@ void LCDsetPosition(uint8_t line, uint8_t pos) //set position at line, position 
 {
   //if (pos > 0 && pos <= 20) {pos--;}   //if pos > than min (1) change to index, 1 --> 0, etc. (human --> index)
   //else {pos=0;} //else reset to 0
-  if (pos > 20 || pos <= 0) {pos=0;}
+  //if (pos > 20 || pos <= 0) {pos=0;}
+  if (pos > 20) {pos=0;}
   
 //if      (line == 1); //normal index
   if      (line == 2) {pos += 64;}
+  //else pos = pos + (line>=3) ? 20 : 84;
   else if (line == 3) {pos += 20;}
   else if (line == 4) {pos += 84;}
   else if (line > 4 || line < 1) {line=1;}
+
+//else {line=1;}
   
- 
-  pos += 127; //should be 128, but we removed the human-computer index and subtracted here instead.
-  myLCD.write(0xFE); myLCD.write(pos); //command flag + write position
+
+  //pos += 127; //should be 128, but we removed the human-computer index and subtracted here instead.
+  myLCD.write(0xFE); myLCD.write(pos+127); //command flag + write position
+  
+  /*if      (line == 2) pos += 64;
+  else if (line==1);
+  else pos = pos + (line>=3) ? 20 : 84;*/ 
 }
+//-------------------------------------------------------------------------------------------
+void LCDsetPosition(uint8_t line) { LCDsetPosition(line, 1); } //set position at line, position (1-4,1);
 //-------------------------------------------------------------------------------------------
 void LCDclearLine(uint8_t line, uint8_t pos) //write whitespace starting at position until end of line
 {
@@ -77,8 +88,10 @@ void LCDturnDisplayOn() //this turns the display back ON
   myLCD.write(0xFE); myLCD.write(12); // 0x0C
 }
 //-------------------------------------------------------------------------------------------
-void LCDbrightness(uint8_t brightness) { //this function takes an int between 0-255 and turns the backlight on accordingly
+void LCDbrightness(uint8_t brightness) //this function takes an int between 0-255 and turns the backlight on accordingly
 // 0 = OFF, 255 = Fully ON, everything in-between = varied brightness [out of possible 30 different brightness levels]
+//
+{
   myLCD.write(0x7C); myLCD.write(map(brightness, 0, 255, 128, 157)); //NOTE THE DIFFERENT COMMAND FLAG = 124 dec 
 }
 //-------------------------------------------------------------------------------------------
@@ -107,6 +120,37 @@ void LCDtoggleSplash() //this toggles the splash screen [if off send this to tur
 {
   myLCD.write(0x7C); //command flag = 124 dec
   myLCD.write(9); // 0x09
+}
+//-------------------------------------------------------------------------------------------
+
+//##PROGRAMMING
+//NOTE: Characters in CGRAM are programmed by selecting a position by the following: 0   1   A   A   A   A   A   A, as in (0b01xxxxxx), as in 0x40 for position 0, and 0x52 for a different position
+//-------------------------------------------------------------------------------------------
+void setGFX(byte pos, byte b1, byte b2, byte b3, byte b4, byte b5, byte b6, byte b7, byte b8){
+  myLCD.write((byte)0xFE); // appel de fonction sur le HD44780
+  myLCD.write((byte)64 + pos * 8); // accès à la CGRAM
+  myLCD.write((byte)b1);
+  myLCD.write((byte)b2);
+  myLCD.write((byte)b3);
+  myLCD.write((byte)b4);
+  myLCD.write((byte)b5);
+  myLCD.write((byte)b6);
+  myLCD.write((byte)b7);
+  myLCD.write((byte)b8);
+}
+//-------------------------------------------------------------------------------------------
+void LEDsetCustomCharacters() {
+  setGFX(0,142,155,145,145,145,145,145,159); //batt empty
+  setGFX(1,142,155,145,145,145,145,159,159); //batt 1/5
+  setGFX(2,142,155,145,145,145,159,159,159); //batt 2/5
+  setGFX(3,142,155,145,145,159,159,159,159); //batt 3/5
+  setGFX(4,142,155,145,159,159,159,159,159); //batt 4/5
+  setGFX(5,142,159,159,159,159,159,159,159); //batt full
+  //setGFX(4,152,152,128,131,132,132,131,128); // °c
+  //setGFX(6,152,152,128,131,132,132,132,131); //deg capitalC //we don't use Celsius here, so optional
+  //setGFX(6,129,131,134,143,159,134,140,152); //lightning bolt
+  setGFX(6,138,159,145,142,132,132,152,128); // plug
+  setGFX(7,152,152,128,135,132,135,132,132); //deg capitalF
 }
 //-------------------------------------------------------------------------------------------
 /*void LCDclearScreenFull() //[DEPRECATED]

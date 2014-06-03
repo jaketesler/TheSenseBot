@@ -54,28 +54,28 @@ void setStatusLight(boolean s1enable, boolean s1, boolean s2enable, boolean s2, 
 void setPins2() {
   pinMode(2, INPUT_PULLUP); //for interrupt 0 (this is the mode button)
   pinMode(3, INPUT_PULLUP); //for interrupt 1 (this is the XBee interrupt) #PWM
-//pinMode(4, OUTPUT);    //LCD RX/TX is on pin 4 **SendOnlySoftwareSerial
+//pinMode(4, OUTPUT);    //XBee (MCU to) TX is on pin 7 **SoftwareSerial
   pinMode(5, OUTPUT);    //XBee Wireless Interupt LED #PWM
-//pinMode(6, OUTPUT);    //XBee (MCU to) RX is on pin 6 #PWM **SoftwareSerial
-//pinMode(7, OUTPUT);    //XBee (MCU to) TX is on pin 7 **SoftwareSerial
+  pinMode(6, OUTPUT);    //Buzzer #PWM
+//pinMode(7, OUTPUT);    //XBee (MCU to) RX is on pin 6 #PWM **SoftwareSerial
   pinMode(8, OUTPUT);    //MCU-ON LED
-  pinMode(9, OUTPUT);    //Buzzer #PWM
+  pinMode(9, OUTPUT);    //MCU Status 1 LED
   pinMode(10, OUTPUT);   //Laser EN #PWM
   pinMode(11, OUTPUT);   //LED for mode button (BUTTONLED) #PWM
-  pinMode(12, INPUT);    //
-  pinMode(13, OUTPUT);   //Builtin LED (STAT2)
+  pinMode(12, INPUT);    //Charge Indicator
+  pinMode(13, OUTPUT);   //Builtin LED/STAT2
   pinMode(A0, OUTPUT);   //Error LED
   pinMode(A1, OUTPUT);   //XBee Sleep Pin
-  pinMode(A2, OUTPUT);   //MCU Status 1 LED
-  pinMode(A6, OUTPUT);   
+//pinMode(A2, OUTPUT);   //LCD RX/TX is on pin 4 **SendOnlySoftwareSerial
+  pinMode(A3, OUTPUT);   //I2C SDA/SCL Relay (RELAY)
 //pinMode(A4, INPUT);    //I2C SDA #PWM-S **Wire
 //pinMode(A5, INPUT);    //I2C SCL #PWM-S **Wire
-  pinMode(A3, OUTPUT);   //MCU Status 2 LED
-  pinMode(A7, INPUT);    //Humidity sensor
+  pinMode(A6, INPUT);    //Humidity sensor
+  pinMode(A7, INPUT);    //Microphone
 }
 
 void setPins1() {
-  pinMode(2, INPUT_PULLUP); //for interrupt 0 (this is the mode button)
+pinMode(2, INPUT_PULLUP); //for interrupt 0 (this is the mode button)
   pinMode(3, INPUT_PULLUP); //for interrupt 1 (this is the XBee interrupt) #PWM
 //pinMode(4, OUTPUT);    //LCD RX/TX is on pin 4 **SendOnlySoftwareSerial
   pinMode(5, OUTPUT);    //XBee Wireless Interupt LED #PWM
