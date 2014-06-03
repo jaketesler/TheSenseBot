@@ -124,33 +124,32 @@ void LCDtoggleSplash() //this toggles the splash screen [if off send this to tur
 //-------------------------------------------------------------------------------------------
 
 //##PROGRAMMING
-//NOTE: Characters in CGRAM are programmed by selecting a position by the following: 0   1   A   A   A   A   A   A, as in (0b01xxxxxx), as in 0x40 for position 0, and 0x52 for a different position
 //-------------------------------------------------------------------------------------------
-void setGFX(byte pos, byte b1, byte b2, byte b3, byte b4, byte b5, byte b6, byte b7, byte b8){
-  myLCD.write((byte)0xFE); // appel de fonction sur le HD44780
-  myLCD.write((byte)64 + pos * 8); // accès à la CGRAM
-  myLCD.write((byte)b1);
-  myLCD.write((byte)b2);
-  myLCD.write((byte)b3);
-  myLCD.write((byte)b4);
-  myLCD.write((byte)b5);
-  myLCD.write((byte)b6);
-  myLCD.write((byte)b7);
-  myLCD.write((byte)b8);
+void LCDsetChar(byte pos, byte bit1, byte bit2, byte bit3, byte bit4, byte bit5, byte bit6, byte bit7, byte bit8){
+  myLCD.write((byte)0xFE); // Function Command for LCD
+  myLCD.write((byte)64 + pos * 8); // CGRAM address
+  myLCD.write((byte)bit1);
+  myLCD.write((byte)bit2);
+  myLCD.write((byte)bit3);
+  myLCD.write((byte)bit4);
+  myLCD.write((byte)bit5);
+  myLCD.write((byte)bit6);
+  myLCD.write((byte)bit7);
+  myLCD.write((byte)bit8);
 }
 //-------------------------------------------------------------------------------------------
 void LEDsetCustomCharacters() {
-  setGFX(0,142,155,145,145,145,145,145,159); //batt empty
-  setGFX(1,142,155,145,145,145,145,159,159); //batt 1/5
-  setGFX(2,142,155,145,145,145,159,159,159); //batt 2/5
-  setGFX(3,142,155,145,145,159,159,159,159); //batt 3/5
-  setGFX(4,142,155,145,159,159,159,159,159); //batt 4/5
-  setGFX(5,142,159,159,159,159,159,159,159); //batt full
-  //setGFX(4,152,152,128,131,132,132,131,128); // °c
-  //setGFX(6,152,152,128,131,132,132,132,131); //deg capitalC //we don't use Celsius here, so optional
-  //setGFX(6,129,131,134,143,159,134,140,152); //lightning bolt
-  setGFX(6,138,159,145,142,132,132,152,128); // plug
-  setGFX(7,152,152,128,135,132,135,132,132); //deg capitalF
+  LCDsetChar(0,142,155,145,145,145,145,145,159); //batt empty
+  LCDsetChar(1,142,155,145,145,145,145,159,159); //batt 1/5
+  LCDsetChar(2,142,155,145,145,145,159,159,159); //batt 2/5
+  LCDsetChar(3,142,155,145,145,159,159,159,159); //batt 3/5
+  LCDsetChar(4,142,155,145,159,159,159,159,159); //batt 4/5
+  LCDsetChar(5,142,159,159,159,159,159,159,159); //batt full
+  //LCDsetChar(4,152,152,128,131,132,132,131,128); // °c
+  //LCDsetChar(6,152,152,128,131,132,132,132,131); //deg capitalC //we don't use Celsius here, so optional
+  //LCDsetChar(6,129,131,134,143,159,134,140,152); //lightning bolt
+  LCDsetChar(6,138,159,145,142,132,132,152,128); // plug
+  LCDsetChar(7,152,152,128,135,132,135,132,132); //deg capitalF
 }
 //-------------------------------------------------------------------------------------------
 /*void LCDclearScreenFull() //[DEPRECATED]
